@@ -1,0 +1,305 @@
+#!/usr/bin/env bash
+# idris2-lsp-cli — Query Idris2 LSP features from the command line
+#
+# Uses bash coproc to avoid FIFO deadlock. Requires jq and idris2-lsp in PATH.
+#
+# Usage:
+#   idris2-lsp-cli hover    FILE LINE COL
+#   idris2-lsp-cli def      FILE LINE COL
+#   idris2-lsp-cli refs     FILE LINE COL
+#   idris2-lsp-cli actions  FILE LINE COL
+
+set -euo pipefail
+
+METHOD=""
+FILE=""
+LINE=""
+COL=""
+DEBUG="${IDRIS2_LSP_DEBUG:-}"
+
+usage() {
+  cat >&2 <<EOF
+Usage: $(basename "$0") <command> <file> <line> <column>
+
+Commands:
+  hover    Show type / documentation at position
+  def      Go to definition
+  refs     Find references
+  actions  List code actions at position
+
+Environment:
+  IDRIS2_LSP_DEBUG=1  Print raw JSON-RPC traffic to stderr
+
+Example:
+  $(basename "$0") hover src/Main.idr 10 5
+EOF
+  exit 1
+}
+
+parse_args() {
+  [[ $# -eq 4 ]] || usage
+  case "$1" in
+    hover)    METHOD="textDocument/hover" ;;
+    def|definition) METHOD="textDocument/definition" ;;
+    refs|references) METHOD="textDocument/references" ;;
+    actions|codeAction) METHOD="textDocument/codeAction" ;;
+    *) usage ;;
+  esac
+  FILE="$(realpath "$2")"
+  LINE="$3"
+  COL="$4"
+}
+
+# ------------------------------------------------------------------------------
+# JSON-RPC I/O over coproc fds
+# ------------------------------------------------------------------------------
+
+msg_id=0
+
+_send() {
+  local data="$1"
+  local len=${#data}
+  if [[ -n "$DEBUG" ]]; then
+    printf '>>> Content-Length: %d\r\n\r\n%s\n' "$len" "$data" >&2
+  fi
+  printf 'Content-Length: %d\r\n\r\n%s' "$len" "$data" >&${IDRIS_LSP[1]}
+}
+
+send_jsonrpc() {
+  local method="$1"
+  local params="$2"
+  msg_id=$((msg_id + 1))
+  local body
+  body=$(jq -n \
+    --argjson id "$msg_id" \
+    --arg method "$method" \
+    --argjson params "$params" \
+    '{jsonrpc:"2.0",id:$id,method:$method,params:$params}')
+  _send "$body"
+}
+
+send_notification() {
+  local method="$1"
+  local params="$2"
+  local body
+  body=$(jq -n \
+    --arg method "$method" \
+    --argjson params "$params" \
+    '{jsonrpc:"2.0",method:$method,params:$params}')
+  _send "$body"
+}
+
+read_response() {
+  local expected_id="$1"
+  local content_len=""
+  local line
+
+  # Read headers
+  while IFS= read -r -u ${IDRIS_LSP[0]} line; do
+    line="${line%$'\r'}"
+    [[ -z "$line" ]] && break
+    if [[ "$line" =~ ^Content-Length:\ *([0-9]+)$ ]]; then
+      content_len="${BASH_REMATCH[1]}"
+    fi
+  done
+
+  if [[ -z "$content_len" ]]; then
+    echo "Error: could not read Content-Length" >&2
+    return 1
+  fi
+
+  # Read exactly content_len bytes into a file so we can parse with jq
+  local tmpbody
+  tmpbody=$(mktemp)
+  dd bs=1 count="$content_len" <&${IDRIS_LSP[0]} of="$tmpbody" 2>/dev/null
+
+  local body
+  body=$(cat "$tmpbody")
+  rm -f "$tmpbody"
+
+  if [[ -n "$DEBUG" ]]; then
+    printf '<<< %s\n' "$body" >&2
+  fi
+
+  local resp_id
+  resp_id=$(echo "$body" | jq -r '.id // empty')
+  if [[ "$resp_id" != "$expected_id" ]]; then
+    read_response "$expected_id"
+    return
+  fi
+
+  echo "$body"
+}
+
+# ------------------------------------------------------------------------------
+# Param builders
+# ------------------------------------------------------------------------------
+
+build_hover_params() {
+  jq -n \
+    --arg uri "file://$FILE" \
+    --argjson line "$((LINE - 1))" \
+    --argjson col "$((COL - 1))" \
+    '{textDocument:{uri:$uri},position:{line:$line,character:$col}}'
+}
+
+build_definition_params() {
+  jq -n \
+    --arg uri "file://$FILE" \
+    --argjson line "$((LINE - 1))" \
+    --argjson col "$((COL - 1))" \
+    '{textDocument:{uri:$uri},position:{line:$line,character:$col}}'
+}
+
+build_references_params() {
+  jq -n \
+    --arg uri "file://$FILE" \
+    --argjson line "$((LINE - 1))" \
+    --argjson col "$((COL - 1))" \
+    '{textDocument:{uri:$uri},position:{line:$line,character:$col},context:{includeDeclaration:true}}'
+}
+
+build_codeAction_params() {
+  jq -n \
+    --arg uri "file://$FILE" \
+    --argjson line "$((LINE - 1))" \
+    --argjson col "$((COL - 1))" \
+    '{textDocument:{uri:$uri},range:{start:{line:$line,character:$col},end:{line:$line,character:$col}},context:{diagnostics:[]}}'
+}
+
+# ------------------------------------------------------------------------------
+# Pretty printers
+# ------------------------------------------------------------------------------
+
+print_hover() {
+  local resp="$1"
+  local contents
+  contents=$(echo "$resp" | jq -r '.result.contents // empty')
+  [[ -z "$contents" ]] && { echo "No hover information found."; return; }
+  if echo "$contents" | jq -e 'type == "string"' >/dev/null; then
+    echo "$contents" | jq -r '.'
+  else
+    echo "$contents" | jq -r '.value // empty'
+  fi
+}
+
+print_definition() {
+  local resp="$1"
+  local result
+  result=$(echo "$resp" | jq -r '.result // empty')
+  [[ -z "$result" || "$result" == "null" ]] && { echo "No definition found."; return; }
+  echo "$resp" | jq -r '
+    .result | if type == "array" then . else [.] end | .[]
+    | "\(.uri | sub("^file://"; "")):\(.range.start.line + 1):\(.range.start.character + 1)"
+  '
+}
+
+print_references() {
+  local resp="$1"
+  local result
+  result=$(echo "$resp" | jq -r '.result // empty')
+  [[ -z "$result" || "$result" == "null" || "$result" == "[]" ]] && { echo "No references found."; return; }
+  echo "$resp" | jq -r '.result[] | "\(.uri | sub("^file://"; "")):\(.range.start.line + 1):\(.range.start.character + 1)"'
+}
+
+print_codeActions() {
+  local resp="$1"
+  local result
+  result=$(echo "$resp" | jq -r '.result // empty')
+  [[ -z "$result" || "$result" == "null" || "$result" == "[]" ]] && { echo "No code actions available."; return; }
+  echo "$resp" | jq -r '.result[] | "[\(.kind // "unknown")] \(.title)"'
+}
+
+# ------------------------------------------------------------------------------
+# Main
+# ------------------------------------------------------------------------------
+
+main() {
+  parse_args "$@"
+
+  if ! command -v idris2-lsp >/dev/null 2>&1; then
+    echo "Error: idris2-lsp not found in PATH." >&2
+    exit 1
+  fi
+
+  # Start LSP server via coproc (avoids FIFO deadlock)
+  coproc IDRIS_LSP { idris2-lsp 2>/dev/null; }
+  server_pid=$IDRIS_LSP_PID
+  trap 'kill "${server_pid:-}" 2>/dev/null || true' EXIT
+
+  # 1. Initialize
+  local root_uri=""
+  if git rev-parse --show-toplevel >/dev/null 2>&1; then
+    root_uri="file://$(git rev-parse --show-toplevel)"
+  fi
+
+  local init_params
+  init_params=$(jq -n \
+    --arg rootUri "$root_uri" \
+    '{
+      processId: null,
+      rootUri: $rootUri,
+      capabilities: {
+        textDocument: {
+          hover: { contentFormat: ["markdown", "plaintext"] },
+          definition: { linkSupport: false },
+          references: {},
+          codeAction: { codeActionLiteralSupport: { codeActionKind: { valueSet: ["", "quickfix", "refactor", "source"] } } }
+        }
+      }
+    }')
+
+  send_jsonrpc "initialize" "$init_params"
+  local init_resp
+  init_resp=$(read_response "1")
+
+  # 2. Open the document
+  local text
+  text=$(jq -Rs '.' < "$FILE")
+  local open_params
+  open_params=$(jq -n \
+    --arg uri "file://$FILE" \
+    --argjson text "$text" \
+    '{
+      textDocument: {
+        uri: $uri,
+        languageId: "idris",
+        version: 1,
+        text: $text
+      }
+    }')
+  send_notification "textDocument/didOpen" "$open_params"
+
+  sleep 0.5
+
+  # 3. Send the actual request
+  local params
+  case "$METHOD" in
+    textDocument/hover)      params=$(build_hover_params) ;;
+    textDocument/definition) params=$(build_definition_params) ;;
+    textDocument/references) params=$(build_references_params) ;;
+    textDocument/codeAction) params=$(build_codeAction_params) ;;
+  esac
+
+  send_jsonrpc "$METHOD" "$params"
+  local req_id="$msg_id"
+  local resp
+  resp=$(read_response "$req_id")
+
+  # 4. Pretty-print
+  case "$METHOD" in
+    textDocument/hover)      print_hover "$resp" ;;
+    textDocument/definition) print_definition "$resp" ;;
+    textDocument/references) print_references "$resp" ;;
+    textDocument/codeAction) print_codeActions "$resp" ;;
+  esac
+
+  # 5. Shutdown
+  send_jsonrpc "shutdown" "null"
+  read_response "$((req_id + 1))" >/dev/null 2>&1 || true
+  send_notification "exit" "null"
+
+  kill "$server_pid" 2>/dev/null || true
+}
+
+main "$@"

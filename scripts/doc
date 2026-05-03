@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+# doc - Browse Idris2 package documentation
+#
+# Usage:
+#   doc list                    # list available package docs
+#   doc show <package>          # view package index
+#   doc show <package> <module> # view specific module docs
+
+DOCS="@DOCS@"
+
+list_docs() {
+  echo "Available package documentation:"
+  echo ""
+  for dir in "$DOCS"/*; do
+    [ -d "$dir" ] || continue
+    name=$(basename "$dir")
+    index="$dir/index.md"
+    if [ -f "$index" ]; then
+      echo "  $name"
+    fi
+  done
+}
+
+show_doc() {
+  local pkg="$1"
+  local module="${2:-}"
+  local index="$DOCS/$pkg/index.md"
+
+  if [ ! -f "$index" ]; then
+    echo "No docs found for package '$pkg'" >&2
+    echo "Run 'doc list' to see available packages" >&2
+    exit 1
+  fi
+
+  if [ -n "$module" ]; then
+    local mod_file="$DOCS/$pkg/${module}.md"
+    if [ -f "$mod_file" ]; then
+      cat "$mod_file"
+    else
+      echo "No module docs found for '$module' in package '$pkg'" >&2
+      echo "Available modules:" >&2
+      ls "$DOCS/$pkg/" | grep '\.md$' | sed 's/\.md$//' | sed 's/^/  /' >&2
+      exit 1
+    fi
+  else
+    cat "$index"
+  fi
+}
+
+case "${1:-list}" in
+  list)
+    list_docs
+    ;;
+  show)
+    if [ -z "${2:-}" ]; then
+      echo "Usage: doc show <package> [module]" >&2
+      exit 1
+    fi
+    show_doc "$2" "${3:-}"
+    ;;
+  *)
+    echo "Usage: doc list | doc show <package> [module]" >&2
+    exit 1
+    ;;
+esac
