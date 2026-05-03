@@ -12,17 +12,22 @@
       let
         pkgs = nixpkgs.legacyPackages.${system};
         idris2 = idris2-withpkgs.inputs.idris2-src.packages.${system}.idris2;
+        idris2api = idris2-withpkgs.inputs.idris2-src.packages.${system}.idris2Api;
 
         # Select registry packages to use as dependencies.
         # Available packages: containers, algebra, array, json, json-simple,
         # async, bytestring, hedgehog, parser, and 150+ more.
         idrisLibraries = with idris2-withpkgs.packages.${system}; [
           prettier
+          parser
+          idris2api
         ];
 
         # Wrapped idris2 with all selected packages available in devShell
         idris2Wrapped = idris2-withpkgs.lib.${system}.withPackages (p: [
           p.prettier
+          p.parser
+          idris2api
         ]);
 
         # Docs packages for dependencies (add <name>-docs here)
