@@ -14,3 +14,4 @@ modules = IdrisFmt.AST
 main = Main
 executable = idris2-fmt
 depends = prettier
+        , idris2

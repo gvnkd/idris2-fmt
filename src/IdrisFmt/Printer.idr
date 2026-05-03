@@ -69,7 +69,7 @@ mutual
         <++> line "->" <++> pretty ret
     prettyPrec d (EPi rig Explicit Nothing arg ret) =
       parenthesise (d > Open) $
-        parens (pretty arg) <++> line "->" <++> pretty ret
+        pretty arg <++> line "->" <++> pretty ret
     prettyPrec d (EPi _ _ _ arg ret) =
       parenthesise (d > Open) $ pretty arg <++> line "->" <++> pretty ret
     prettyPrec d (ELam rig _ pat ty scope) =
@@ -131,7 +131,7 @@ mutual
         hsep (map fnOptDoc fnOpts) <++> pretty n <++> colon <++> pretty ty
     prettyPrec _ (DDef comments n clauses) =
       vsep (map pretty comments) `vappend`
-        vsep (map (\c => pretty n <++> pretty c) clauses)
+        vsep (map pretty clauses)
     prettyPrec _ (DData _ dd) = pretty dd
     prettyPrec _ (DRecord _ rd) = pretty rd
     prettyPrec _ (DInterface _ id) = pretty id
