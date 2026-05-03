@@ -12,91 +12,243 @@ import IdrisFmt.Config as CFG
 import IdrisFmt.Comments as C
 import IdrisFmt.Doc as D
 
-%default total
-
-||| Print a full module: render all declarations with inter-declaration spacing.
-export
-printModule : {opts : _} -> CFG.Config -> List (AST.Decl AST.Name) -> Doc opts
-printModule cfg decls = ?rhs_printModule
+%default covering
 
 mutual
-  ||| Pretty-print a name.
+  prettyRig : {opts : _} -> AST.RigCount -> Doc opts
+  prettyRig AST.Rig0 = line "0 "
+  prettyRig AST.Rig1 = line "1 "
+  prettyRig AST.RigW = Doc.empty
+
+  lamBinder : {opts : _} -> AST.RigCount -> AST.Expr AST.Name -> AST.Expr AST.Name -> Doc opts
+  lamBinder r p AST.EImplicit = prettyRig r <+> pretty p
+  lamBinder r p t = prettyRig r <+> pretty p <++> colon <++> pretty t
+
+  letBinder : {opts : _} -> AST.RigCount -> AST.Expr AST.Name -> AST.Expr AST.Name -> Doc opts
+  letBinder r p AST.EImplicit = prettyRig r <+> pretty p
+  letBinder r p t = prettyRig r <+> pretty p <++> colon <++> pretty t
+
+  implNameDoc : {opts : _} -> Maybe AST.Name -> Doc opts
+  implNameDoc Nothing  = Doc.empty
+  implNameDoc (Just n) = pretty n <++> equals
+
+  fnOptDoc : {opts : _} -> AST.FnOpt -> Doc opts
+  fnOptDoc AST.Inline    = keyword "%inline"
+  fnOptDoc AST.TCInline  = keyword "%tcinline"
+  fnOptDoc AST.NoInline  = keyword "%noinline"
+
+  paramDoc : {opts : _} -> (AST.Name, Maybe (AST.Expr AST.Name)) -> Doc opts
+  paramDoc (n, Nothing) = pretty n
+  paramDoc (n, Just ty) = pretty n <++> colon <++> pretty ty
+
+  usingDoc : {opts : _} -> (Maybe AST.Name, AST.Expr AST.Name) -> Doc opts
+  usingDoc (Nothing, ty) = pretty ty
+  usingDoc (Just n, ty) = pretty n <++> colon <++> pretty ty
+
+  fixityStr : AST.Fixity -> String
+  fixityStr AST.InfixL = "infixl"
+  fixityStr AST.InfixR = "infixr"
+  fixityStr AST.Infix  = "infix"
+  fixityStr AST.Prefix = "prefix"
+
   export
   Pretty AST.Name where
     prettyPrec _ (AST.UN s)   = D.ident s
     prettyPrec _ (AST.MN s i) = D.ident (s ++ "_" ++ show i)
 
-  ||| Pretty-print an expression.
   export
   Pretty (AST.Expr AST.Name) where
-    prettyPrec p expr = ?rhs_prettyExpr
+    prettyPrec _ (ERef n) = pretty n
+    prettyPrec d (EPi rig Explicit (Just n) arg ret) =
+      parenthesise (d > Open) $
+        parens (prettyRig rig <+> pretty n <++> colon <++> pretty arg)
+        <++> line "->" <++> pretty ret
+    prettyPrec d (EPi rig Implicit (Just n) arg ret) =
+      parenthesise (d > Open) $
+        braces (prettyRig rig <+> pretty n <++> colon <++> pretty arg)
+        <++> line "->" <++> pretty ret
+    prettyPrec d (EPi rig Explicit Nothing arg ret) =
+      parenthesise (d > Open) $
+        parens (pretty arg) <++> line "->" <++> pretty ret
+    prettyPrec d (EPi _ _ _ arg ret) =
+      parenthesise (d > Open) $ pretty arg <++> line "->" <++> pretty ret
+    prettyPrec d (ELam rig _ pat ty scope) =
+      parenthesise (d > Open) $
+        line "\\" <+> lamBinder rig pat ty <++> line "=>" <++> pretty scope
+    prettyPrec d (ELet rig pat ty val scope _) =
+      parenthesise (d > Open) $
+        keyword "let" <++> letBinder rig pat ty <++> equals <++> pretty val
+        `vappend` keyword "in" <++> pretty scope
+    prettyPrec d (EApp f x) =
+      parenthesise (d >= App) $ prettyPrec Open f <++> prettyPrec App x
+    prettyPrec _ (ENamedApp f n x) =
+      pretty f <++> braces (pretty n <++> equals <++> pretty x)
+    prettyPrec _ (EAutoApp f x) =
+      pretty f <++> pretty x
+    prettyPrec _ (EDelayed x) = pretty x
+    prettyPrec _ (EDelay x) = pretty x
+    prettyPrec _ (EForce x) = pretty x
+    prettyPrec _ (ECase scrut alts) =
+      keyword "case" <++> pretty scrut <++> keyword "of"
+      `vappend` indent 2 (vsep (map pretty alts))
+    prettyPrec _ (ELocal decls scope) =
+      (keyword "let" <++> keyword "where" `vappend` indent 2 (vsep (map pretty decls)))
+      `vappend` (keyword "in" <++> pretty scope)
+    prettyPrec _ (EList xs) = list (map pretty xs)
+    prettyPrec _ (ESnocList xs) = snocList (map pretty (xs <>> []))
+    prettyPrec _ (EPair x y) = tuple [pretty x, pretty y]
+    prettyPrec _ (EString parts) = dquotes (hcat (map pretty parts))
+    prettyPrec _ (EDo _ stmts) =
+      keyword "do" `vappend` indent 2 (vsep (map pretty stmts))
+    prettyPrec _ (EIdiom _ x) =
+      lbracket <+> pipe <+> pretty x <+> pipe <+> rbracket
+    prettyPrec _ (EIf c t f) =
+      keyword "if" <++> pretty c
+      <++> keyword "then" <++> pretty t
+      <++> keyword "else" <++> pretty f
+    prettyPrec _ (EHole s) = line "?" <+> line s
+    prettyPrec _ EType = keyword "Type"
+    prettyPrec _ EImplicit = line "_"
+    prettyPrec _ (EQuote x) = line "`" <+> pretty x <+> line "`"
+    prettyPrec _ (EUnquote x) = line "~" <+> pretty x
+    prettyPrec _ (EPrim c) = pretty c
+    prettyPrec d (EOp l op r) =
+      parenthesise (d >= App) $ prettyPrec Open l <++> pretty op <++> prettyPrec Open r
+    prettyPrec _ (EPrefixOp op x) = pretty op <++> pretty x
+    prettyPrec _ (ESectionL op x) = parens (pretty op <++> pretty x)
+    prettyPrec _ (ESectionR x op) = parens (pretty x <++> pretty op)
+    prettyPrec _ (EBracketed x) = parens (pretty x)
+    prettyPrec _ (EAs n x) = pretty n <+> line "@" <+> pretty x
+    prettyPrec _ (EDotted x) = line "." <+> pretty x
+    prettyPrec _ (EComment c x) = pretty c `vappend` pretty x
 
-  ||| Pretty-print a top-level declaration.
   export
   Pretty (AST.Decl AST.Name) where
-    prettyPrec p decl = ?rhs_prettyDecl
+    prettyPrec _ (DModule name _) = keyword "module" <++> line name
+    prettyPrec _ (DImport imp) = pretty imp
+    prettyPrec _ (DClaim comments n ty fnOpts) =
+      vsep (map pretty comments) `vappend`
+        hsep (map fnOptDoc fnOpts) <++> pretty n <++> colon <++> pretty ty
+    prettyPrec _ (DDef comments n clauses) =
+      vsep (map pretty comments) `vappend`
+        vsep (map (\c => pretty n <++> pretty c) clauses)
+    prettyPrec _ (DData _ dd) = pretty dd
+    prettyPrec _ (DRecord _ rd) = pretty rd
+    prettyPrec _ (DInterface _ id) = pretty id
+    prettyPrec _ (DImpl _ impl) = pretty impl
+    prettyPrec _ (DFixity fd) = pretty fd
+    prettyPrec _ (DNamespace ns decls) =
+      keyword "namespace" <++> hsep (map line ns) <++> keyword "where"
+      `vappend` indent 2 (vsep (map pretty decls))
+    prettyPrec _ (DMutual decls) =
+      keyword "mutual" <++> keyword "where"
+      `vappend` indent 2 (vsep (map pretty decls))
+    prettyPrec _ (DParams params decls) =
+      keyword "parameters" <++> parens (hsep (map paramDoc params))
+      <++> keyword "where"
+      `vappend` indent 2 (vsep (map pretty decls))
+    prettyPrec _ (DUsing usings decls) =
+      keyword "using" <++> parens (hsep (map usingDoc usings))
+      <++> keyword "where"
+      `vappend` indent 2 (vsep (map pretty decls))
+    prettyPrec _ (DComment c) = pretty c
+    prettyPrec _ (DBlank n) = vsep (replicate n (line ""))
 
-  ||| Pretty-print a pattern-matching clause.
   export
   Pretty (AST.Clause AST.Name) where
-    prettyPrec p clause = ?rhs_prettyClause
+    prettyPrec _ (MkClause lhs rhs) =
+      pretty lhs <++> keyword "=>" <++> pretty rhs
+    prettyPrec _ (MkWith lhs wps cs) =
+      pretty lhs <++> keyword "with" <++> parens (hsep (map pretty wps))
+      `vappend` indent 2 (vsep (map pretty cs))
+    prettyPrec _ (MkImposs lhs) =
+      pretty lhs <++> keyword "impossible"
 
-  ||| Pretty-print a do-statement.
   export
   Pretty (AST.DoStmt AST.Name) where
-    prettyPrec p stmt = ?rhs_prettyDoStmt
+    prettyPrec _ (DoExp tm) = pretty tm
+    prettyPrec _ (DoBind n rig ty tm) =
+      prettyRig rig <+> pretty n <++> tyDoc ty <++> keyword "<-" <++> pretty tm
+      where
+        tyDoc : Maybe (AST.Expr AST.Name) -> Doc opts
+        tyDoc Nothing = Doc.empty
+        tyDoc (Just t) = colon <++> pretty t
+    prettyPrec _ (DoBindPat pat ty val _) =
+      pretty pat <++> tyDoc ty <++> keyword "<-" <++> pretty val
+      where
+        tyDoc : Maybe (AST.Expr AST.Name) -> Doc opts
+        tyDoc Nothing = Doc.empty
+        tyDoc (Just t) = colon <++> pretty t
+    prettyPrec _ (DoLet n rig tm) =
+      keyword "let" <++> prettyRig rig <+> pretty n <++> equals <++> pretty tm
+    prettyPrec _ (DoLetPat pat val _) =
+      keyword "let" <++> pretty pat <++> equals <++> pretty val
+    prettyPrec _ (DoRewrite rule) =
+      keyword "rewrite" <++> pretty rule
 
-  ||| Pretty-print a string interpolation part.
   export
   Pretty (AST.StringPart AST.Name) where
-    prettyPrec p sp = ?rhs_prettyStringPart
+    prettyPrec _ (StrLit s) = text s
+    prettyPrec _ (StrInterp tm) =
+      line "\\{" <+> pretty tm <+> line "}"
 
-  ||| Pretty-print a record field update.
   export
   Pretty (AST.FieldUpdate AST.Name) where
-    prettyPrec p fu = ?rhs_prettyFieldUpdate
+    prettyPrec _ (FSet path v) =
+      hsep (map line path) <++> equals <++> pretty v
+    prettyPrec _ (FSetApp path v) =
+      hsep (map line path) <++> keyword "$=" <++> pretty v
 
-  ||| Pretty-print a constructor declaration.
   export
   Pretty (AST.ConDecl AST.Name) where
-    prettyPrec p cd = ?rhs_prettyConDecl
+    prettyPrec _ (MkConDecl n ty) = pretty n <++> colon <++> pretty ty
 
-  ||| Pretty-print a record field declaration.
   export
   Pretty (AST.FieldDecl AST.Name) where
-    prettyPrec p fd = ?rhs_prettyFieldDecl
+    prettyPrec _ (MkFieldDecl n ty) = pretty n <++> colon <++> pretty ty
 
-  ||| Pretty-print a data type declaration.
   export
   Pretty (AST.DataDecl AST.Name) where
-    prettyPrec p dd = ?rhs_prettyDataDecl
+    prettyPrec _ (MkDataDecl n params _ cons) =
+      let paramsDoc = hsep (map (\(p, ty) => parens (pretty p <++> colon <++> pretty ty)) params)
+          header = keyword "data" <++> pretty n <++> paramsDoc
+                   <++> colon <++> keyword "Type" <++> keyword "where"
+       in header `vappend` indent 2 (vsep (map pretty cons))
 
-  ||| Pretty-print a record declaration.
   export
   Pretty (AST.RecordDecl AST.Name) where
-    prettyPrec p rd = ?rhs_prettyRecordDecl
+    prettyPrec _ (MkRecordDecl n params _ fields) =
+      let paramsDoc = hsep (map (\(p, ty) => parens (pretty p <++> colon <++> pretty ty)) params)
+          header = keyword "record" <++> pretty n <++> paramsDoc <++> keyword "where"
+       in header `vappend` indent 2 (vsep (map pretty fields))
 
-  ||| Pretty-print an interface declaration.
   export
   Pretty (AST.InterfaceDecl AST.Name) where
-    prettyPrec p id = ?rhs_prettyInterfaceDecl
+    prettyPrec _ (MkInterfaceDecl n params _ methods) =
+      let paramsDoc = hsep (map (\(p, ty) => parens (pretty p <++> colon <++> pretty ty)) params)
+          header = keyword "interface" <++> pretty n <++> paramsDoc <++> keyword "where"
+       in header `vappend` indent 2 (vsep (map pretty methods))
 
-  ||| Pretty-print an implementation declaration.
   export
   Pretty (AST.ImplDecl AST.Name) where
-    prettyPrec p impl = ?rhs_prettyImplDecl
+    prettyPrec _ (MkImplDecl name interfaceName params body) =
+      implDeclDoc name interfaceName params body
 
-  ||| Pretty-print a fixity declaration.
   export
   Pretty AST.FixityDecl where
-    prettyPrec p f = ?rhs_prettyFixityDecl
+    prettyPrec _ (MkFixityDecl fix prec names) =
+      keyword (fixityStr fix) <++> line (show prec) <++> hsep (map (line . show) names)
 
-  ||| Pretty-print an import declaration.
   export
   Pretty AST.ImportDecl where
-    prettyPrec p imp = ?rhs_prettyImportDecl
+    prettyPrec _ (MkImportDecl reexport name alias _ _) =
+      let re = if reexport then keyword "public" <++> keyword "export" else Doc.empty
+          mod = hsep (map line name)
+          as_ = case alias of
+                  Nothing => Doc.empty
+                  Just a  => keyword "as" <++> line a
+       in re <++> keyword "import" <++> mod <++> as_
 
-  ||| Pretty-print a primitive constant.
   export
   Pretty AST.Constant where
     prettyPrec _ (AST.CInt i)    = line (show i)
@@ -104,17 +256,32 @@ mutual
     prettyPrec _ (AST.CChar c)   = squotes (line (show c))
     prettyPrec _ (AST.CDouble d) = line (show d)
 
-  ||| Pretty-print an operator string.
   export
   Pretty (AST.OpStr AST.Name) where
     prettyPrec _ (AST.OpSymbols s) = D.operator_ s
     prettyPrec _ (AST.Backticked n) =
       enclose (D.operator_ "`") (D.operator_ "`") (pretty n)
 
-  ||| Pretty-print a comment.
   export
   Pretty C.Comment where
     prettyPrec _ (C.MkComment C.LineComment content _ _) =
       line "--" <+> text content
     prettyPrec _ (C.MkComment C.BlockComment content _ _) =
       line "{-" <+> text content <+> line "-}"
+
+  implDeclDoc : {opts : _} -> Maybe AST.Name -> AST.Name -> List (AST.Expr AST.Name)
+             -> Maybe (List (AST.Decl AST.Name)) -> Doc opts
+  implDeclDoc name interfaceName params Nothing =
+    keyword "implementation" <++> implNameDoc name
+    <++> pretty interfaceName <++> hsep (map pretty params)
+  implDeclDoc name interfaceName params (Just ds) =
+    let header = keyword "implementation" <++> implNameDoc name
+                 <++> pretty interfaceName <++> hsep (map pretty params)
+     in header <++> keyword "where" `vappend` indent 2 (vsep (map pretty ds))
+
+||| Print a full module: render all declarations with inter-declaration spacing.
+export
+printModule : CFG.Config -> List (AST.Decl AST.Name) -> String
+printModule cfg decls =
+  let opts = D.toLayoutOpts cfg
+   in Doc.render opts (vsep (map pretty decls))

@@ -12,4 +12,5 @@ modules = IdrisFmt.AST
         , IdrisFmt.CLI
         , Main
 main = Main
+executable = idris2-fmt
 depends = prettier
