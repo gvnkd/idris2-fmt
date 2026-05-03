@@ -1,0 +1,15 @@
+package idris2-fmt
+version = 0.1.0
+authors = "Rune"
+sourcedir = "src"
+modules = IdrisFmt.AST
+        , IdrisFmt.Comments
+        , IdrisFmt.Config
+        , IdrisFmt.Doc
+        , IdrisFmt.Parser
+        , IdrisFmt.Printer
+        , IdrisFmt.Transform
+        , IdrisFmt.CLI
+        , Main
+main = Main
+depends = prettier

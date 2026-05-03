@@ -17,16 +17,12 @@
         # Available packages: containers, algebra, array, json, json-simple,
         # async, bytestring, hedgehog, parser, and 150+ more.
         idrisLibraries = with idris2-withpkgs.packages.${system}; [
-          # Add dependencies here as needed
-          # json
-          # containers
+          prettier
         ];
 
         # Wrapped idris2 with all selected packages available in devShell
         idris2Wrapped = idris2-withpkgs.lib.${system}.withPackages (p: [
-          # Add dependencies here as needed
-          # p.json
-          # p.containers
+          p.prettier
         ]);
 
         # Docs packages for dependencies (add <name>-docs here)
@@ -52,7 +48,7 @@
 
         pkg = pkgs.idris2Packages.buildIdris {
           src = ./.;
-          ipkgName = "optparse-applicative";
+          ipkgName = "idris2-fmt";
           version = "0.1.0";
           inherit idrisLibraries;
         };
