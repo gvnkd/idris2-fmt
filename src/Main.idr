@@ -34,7 +34,7 @@ processFile cfg inplace file =
          then do Right () <- SFRW.writeFile file output
                    | Left err => putStrLn ("Error writing " ++ file ++ ": " ++ show err)
                  pure ()
-         else putStrLn output
+         else putStr output
 
 ||| Run the formatter with parsed CLI arguments.
 export

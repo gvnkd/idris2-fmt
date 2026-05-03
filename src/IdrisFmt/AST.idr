@@ -153,7 +153,7 @@ mutual
     constructor MkDataDecl
     name    : nm
     params  : List (nm, Expr nm)
-    indices : List (nm, Expr nm)
+    ty      : Expr nm
     cons    : List (ConDecl nm)
 
   ||| Constructor declaration.

@@ -127,11 +127,18 @@ mutual
     prettyPrec _ (DModule name _) = keyword "module" <++> line name
     prettyPrec _ (DImport imp) = pretty imp
     prettyPrec _ (DClaim comments n ty fnOpts) =
-      vsep (map pretty comments) `vappend`
-        hsep (map fnOptDoc fnOpts) <++> pretty n <++> colon <++> pretty ty
+      let fnOptsDoc = hsep (map fnOptDoc fnOpts)
+          base = case fnOpts of
+                   [] => pretty n <++> colon <++> pretty ty
+                   _  => fnOptsDoc <++> pretty n <++> colon <++> pretty ty
+       in case comments of
+            [] => base
+            _  => vsep (map pretty comments) `vappend` base
     prettyPrec _ (DDef comments n clauses) =
-      vsep (map pretty comments) `vappend`
-        vsep (map pretty clauses)
+      let body = vsep (map pretty clauses)
+       in case comments of
+            [] => body
+            _  => vsep (map pretty comments) `vappend` body
     prettyPrec _ (DData _ dd) = pretty dd
     prettyPrec _ (DRecord _ rd) = pretty rd
     prettyPrec _ (DInterface _ id) = pretty id
@@ -157,7 +164,7 @@ mutual
   export
   Pretty (AST.Clause AST.Name) where
     prettyPrec _ (MkClause lhs rhs) =
-      pretty lhs <++> keyword "=>" <++> pretty rhs
+      pretty lhs <++> keyword "=" <++> pretty rhs
     prettyPrec _ (MkWith lhs wps cs) =
       pretty lhs <++> keyword "with" <++> parens (hsep (map pretty wps))
       `vappend` indent 2 (vsep (map pretty cs))
@@ -209,24 +216,29 @@ mutual
 
   export
   Pretty (AST.DataDecl AST.Name) where
-    prettyPrec _ (MkDataDecl n params _ cons) =
-      let paramsDoc = hsep (map (\(p, ty) => parens (pretty p <++> colon <++> pretty ty)) params)
-          header = keyword "data" <++> pretty n <++> paramsDoc
-                   <++> colon <++> keyword "Type" <++> keyword "where"
+    prettyPrec _ (MkDataDecl n params ty cons) =
+      let paramsDoc = hsep (map (\(p, t) => parens (pretty p <++> colon <++> pretty t)) params)
+          base = pretty n <++> colon <++> pretty ty <++> keyword "where"
+          header = if null params then keyword "data" <++> base
+                   else keyword "data" <++> pretty n <++> paramsDoc <++> colon <++> pretty ty <++> keyword "where"
        in header `vappend` indent 2 (vsep (map pretty cons))
 
   export
   Pretty (AST.RecordDecl AST.Name) where
     prettyPrec _ (MkRecordDecl n params _ fields) =
       let paramsDoc = hsep (map (\(p, ty) => parens (pretty p <++> colon <++> pretty ty)) params)
-          header = keyword "record" <++> pretty n <++> paramsDoc <++> keyword "where"
+          base = pretty n <++> keyword "where"
+          header = if null params then keyword "record" <++> base
+                   else keyword "record" <++> pretty n <++> paramsDoc <++> keyword "where"
        in header `vappend` indent 2 (vsep (map pretty fields))
 
   export
   Pretty (AST.InterfaceDecl AST.Name) where
     prettyPrec _ (MkInterfaceDecl n params _ methods) =
       let paramsDoc = hsep (map (\(p, ty) => parens (pretty p <++> colon <++> pretty ty)) params)
-          header = keyword "interface" <++> pretty n <++> paramsDoc <++> keyword "where"
+          base = pretty n <++> keyword "where"
+          header = if null params then keyword "interface" <++> base
+                   else keyword "interface" <++> pretty n <++> paramsDoc <++> keyword "where"
        in header `vappend` indent 2 (vsep (map pretty methods))
 
   export
@@ -239,15 +251,19 @@ mutual
     prettyPrec _ (MkFixityDecl fix prec names) =
       keyword (fixityStr fix) <++> line (show prec) <++> hsep (map (line . show) names)
 
+  importDoc : {opts : _} -> Bool -> List String -> Maybe String -> Doc opts
+  importDoc reexport name Nothing =
+    if reexport
+    then keyword "public" <++> keyword "export" <++> keyword "import" <++> line (concat (intersperse "." name))
+    else keyword "import" <++> line (concat (intersperse "." name))
+  importDoc reexport name (Just a) =
+    if reexport
+    then keyword "public" <++> keyword "export" <++> keyword "import" <++> line (concat (intersperse "." name)) <++> keyword "as" <++> line a
+    else keyword "import" <++> line (concat (intersperse "." name)) <++> keyword "as" <++> line a
+
   export
   Pretty AST.ImportDecl where
-    prettyPrec _ (MkImportDecl reexport name alias _ _) =
-      let re = if reexport then keyword "public" <++> keyword "export" else Doc.empty
-          mod = hsep (map line name)
-          as_ = case alias of
-                  Nothing => Doc.empty
-                  Just a  => keyword "as" <++> line a
-       in re <++> keyword "import" <++> mod <++> as_
+    prettyPrec _ (MkImportDecl reexport name alias _ _) = importDoc reexport name alias
 
   export
   Pretty AST.Constant where
@@ -271,12 +287,15 @@ mutual
 
   implDeclDoc : {opts : _} -> Maybe AST.Name -> AST.Name -> List (AST.Expr AST.Name)
              -> Maybe (List (AST.Decl AST.Name)) -> Doc opts
-  implDeclDoc name interfaceName params Nothing =
-    keyword "implementation" <++> implNameDoc name
-    <++> pretty interfaceName <++> hsep (map pretty params)
-  implDeclDoc name interfaceName params (Just ds) =
-    let header = keyword "implementation" <++> implNameDoc name
-                 <++> pretty interfaceName <++> hsep (map pretty params)
+  implDeclDoc Nothing interfaceName params Nothing =
+    keyword "implementation" <++> pretty interfaceName <++> hsep (map pretty params)
+  implDeclDoc (Just n) interfaceName params Nothing =
+    keyword "implementation" <++> pretty n <++> equals <++> pretty interfaceName <++> hsep (map pretty params)
+  implDeclDoc Nothing interfaceName params (Just ds) =
+    let header = keyword "implementation" <++> pretty interfaceName <++> hsep (map pretty params)
+     in header <++> keyword "where" `vappend` indent 2 (vsep (map pretty ds))
+  implDeclDoc (Just n) interfaceName params (Just ds) =
+    let header = keyword "implementation" <++> pretty n <++> equals <++> pretty interfaceName <++> hsep (map pretty params)
      in header <++> keyword "where" `vappend` indent 2 (vsep (map pretty ds))
 
 ||| Print a full module: render all declarations with inter-declaration spacing.

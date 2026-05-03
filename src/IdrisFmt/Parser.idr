@@ -7,12 +7,15 @@ import public Parser.Rule.Source as PRS
 import public Core.Core as CC
 import public Core.FC as CFC
 import public Core.Name as CN
+import public Core.Name.Namespace as CNN
 import public Idris.Syntax as IS
 import public Idris.Parser as IP
 import public TTImp.TTImp as TT
 
 import IdrisFmt.AST as AST
 import IdrisFmt.Comments as C
+
+%hide Libraries.Text.Bounded.WithBounds.val
 
 %default covering
 
@@ -53,6 +56,32 @@ translateRig : Algebra.RigCount -> AST.RigCount
 translateRig c = elimSemi AST.Rig0 AST.Rig1 (const AST.RigW) c
 
 mutual
+  ||| Translate compiler PStr to formatter StringPart.
+  translatePStr : IS.PStr -> AST.StringPart AST.Name
+  translatePStr (StrLiteral _ s) = AST.StrLit s
+  translatePStr (StrInterp _ tm) = AST.StrInterp (translatePTerm tm)
+
+  ||| Extract named Pi parameters from a telescope term.
+  extractPiParams : IS.PTerm -> (List (AST.Name, AST.Expr AST.Name), IS.PTerm)
+  extractPiParams (PPi _ _ _ (Just n) arg ret) =
+    let (ps, ty) = extractPiParams ret
+     in ((translateName n, translatePTerm arg) :: ps, ty)
+  extractPiParams t = ([], t)
+
+  ||| Translate data type telescope to params and return type.
+  translateDataType : Maybe IS.PTerm -> (List (AST.Name, AST.Expr AST.Name), AST.Expr AST.Name)
+  translateDataType Nothing = ([], AST.EType)
+  translateDataType (Just t) = let (ps, t') = extractPiParams t in (ps, translatePTerm t')
+
+  ||| Convert List1 to List.
+  list1ToList : List1 a -> List a
+  list1ToList (x ::: xs) = x :: xs
+
+  ||| Translate BasicMultiBinder to list of (name, type) pairs.
+  translateBasicMultiBinder : IS.BasicMultiBinder' CN.Name -> List (AST.Name, AST.Expr AST.Name)
+  translateBasicMultiBinder (MkBasicMultiBinder rig names ty) =
+    map (\n => (translateName (val n), translatePTerm ty)) (list1ToList names)
+
   ||| Translate PiInfo from compiler to formatter.
   translatePiInfo : Core.TT.Binder.PiInfo IS.PTerm -> AST.PiInfo (AST.Expr AST.Name)
   translatePiInfo Explicit = AST.Explicit
@@ -101,6 +130,7 @@ mutual
   translatePTerm (PPrimVal _ c) = translateConstant c
   translatePTerm (PType _) = AST.EType
   translatePTerm (PImplicit _) = AST.EImplicit
+  translatePTerm (PInfer _) = AST.EImplicit
   translatePTerm (PHole _ _ s) = AST.EHole s
   translatePTerm (PDelayed _ lr x) = AST.EDelayed (translatePTerm x)
   translatePTerm (PDelay _ x) = AST.EDelay (translatePTerm x)
@@ -110,6 +140,18 @@ mutual
   translatePTerm (PAs _ _ n pat) = AST.EAs (translateName n) (translatePTerm pat)
   translatePTerm (POp _ lhsInfo op rhs) =
     AST.EOp (translatePTerm lhsInfo.val.getLhs) (translateOpStr op.val) (translatePTerm rhs)
+  translatePTerm (PString _ _ strs) =
+    AST.EString (map translatePStr strs)
+  translatePTerm (PList _ _ xs) =
+    AST.EList (map (translatePTerm . snd) xs)
+  translatePTerm (PPair _ x y) =
+    AST.EPair (translatePTerm x) (translatePTerm y)
+  translatePTerm (PUnit _) =
+    AST.EImplicit
+  translatePTerm (PIfThenElse _ c t f) =
+    AST.EIf (translatePTerm c) (translatePTerm t) (translatePTerm f)
+  translatePTerm (PIdiom _ ns x) =
+    AST.EIdiom (map show ns) (translatePTerm x)
   translatePTerm tm = AST.EHole ("unsupported_" ++ show tm)
 
 ||| Extract function name from a clause LHS.
@@ -129,6 +171,22 @@ translatePClause (MkWithClause _ lhs wps _ _) =
   AST.MkClause (translatePTerm lhs) (AST.EComment (MkComment LineComment "with clause" 0 0) (AST.EImplicit))
 translatePClause (MkImpossible _ lhs) =
   AST.MkImposs (translatePTerm lhs)
+
+||| Translate compiler PTypeDecl to formatter ConDecl.
+translatePTypeDecl : IS.PTypeDecl -> AST.ConDecl AST.Name
+translatePTypeDecl pty =
+  let td = val pty
+      ns = map (val . snd) (forget td.names)
+   in case ns of
+        [] => MkConDecl (AST.UN "unnamed") (translatePTerm td.type)
+        (n :: _) => MkConDecl (translateName n) (translatePTerm td.type)
+
+||| Translate compiler PField to formatter FieldDecl.
+translatePField : IS.PField -> List (AST.FieldDecl AST.Name)
+translatePField pf =
+  let ns = WithData.get "names" pf
+      f = val pf
+   in map (\n => AST.MkFieldDecl (translateName (val n)) (translatePTerm (boundType f))) ns
 
 ||| Translate compiler PDecl to formatter AST Decl.
 translatePDecl : IS.PDecl -> AST.Decl AST.Name
@@ -153,18 +211,27 @@ translatePDecl pdecl =
                in case getFnName lhs of
                     Nothing => AST.DComment (MkComment LineComment "could not extract function name" 0 0)
                     Just n => AST.DDef [] n (map translatePClause clauses)
-        IS.PData doc vis treq dataDecl =>
-          AST.DComment (MkComment LineComment "PData not yet translated" 0 0)
+        IS.PData doc vis treq (MkPData _ tyname tycon opts datacons) =>
+          let (params, ty) = translateDataType tycon
+           in AST.DData [] (MkDataDecl (translateName tyname) params ty (map translatePTypeDecl datacons))
+        IS.PData doc vis treq (MkPLater _ tyname tycon) =>
+          AST.DComment (MkComment LineComment "forward data declaration" 0 0)
         IS.PParameters params decls =>
           AST.DComment (MkComment LineComment "PParameters not yet translated" 0 0)
         IS.PUsing usings decls =>
           AST.DComment (MkComment LineComment "PUsing not yet translated" 0 0)
         IS.PInterface vis constraints name doc params det conName methods =>
-          AST.DComment (MkComment LineComment "PInterface not yet translated" 0 0)
+          let ps = concatMap translateBasicMultiBinder params
+              parentTerms = map snd constraints
+           in AST.DInterface [] (MkInterfaceDecl (translateName name) ps (map translatePTerm parentTerms) (map translatePDecl methods))
         IS.PImplementation vis opts pass implicits constraints name params implName nusing body =>
-          AST.DComment (MkComment LineComment "PImplementation not yet translated" 0 0)
-        IS.PRecord doc vis treq recDecl =>
-          AST.DComment (MkComment LineComment "PRecord not yet translated" 0 0)
+          AST.DImpl [] (MkImplDecl (map translateName implName) (translateName name) (map translatePTerm params) (map (map translatePDecl) body))
+        IS.PRecord doc vis treq (MkPRecord tyname params opts conName decls) =>
+          let ps = concatMap (translateBasicMultiBinder . bind) params
+              fields = concatMap translatePField decls
+           in AST.DRecord [] (MkRecordDecl (translateName tyname) ps Nothing fields)
+        IS.PRecord doc vis treq (MkPRecordLater tyname params) =>
+          AST.DComment (MkComment LineComment "forward record declaration" 0 0)
         IS.PFail msg decls =>
           AST.DComment (MkComment LineComment "PFail not yet translated" 0 0)
         IS.PMutual decls =>
@@ -199,6 +266,23 @@ translatePDecl pdecl =
 fromError : CC.Error -> ParseError
 fromError err = ParseErr (show err)
 
+||| Split a string on a character.
+splitString : Char -> String -> List String
+splitString c s = go [] (unpack s)
+  where
+    go : List Char -> List Char -> List String
+    go acc [] = [pack (reverse acc)]
+    go acc (x :: xs) =
+      if x == c then pack (reverse acc) :: go [] xs
+      else go (x :: acc) xs
+
+||| Translate compiler Import to formatter ImportDecl.
+translateImport : IS.Import -> AST.ImportDecl
+translateImport imp =
+  let path = splitString '/' (toPath imp.path)
+      alias = if show imp.nameAs == show imp.path then Nothing else Just (show imp.nameAs)
+   in MkImportDecl imp.reexport path alias Nothing Nothing
+
 ||| Parse a full module from source text.
 ||| Uses Idris2's built-in parser.
 export
@@ -208,7 +292,12 @@ parseModule src =
       result = PS.runParser origin Nothing src (IP.prog origin)
    in case result of
         Left err => Left (fromError err)
-        Right (_, (_, mod)) => Right (map translatePDecl (IS.Module.decls mod))
+        Right (_, (_, mod)) =>
+          let modName = show (IS.Module.moduleNS mod)
+              header = AST.DModule modName []
+              imps = map (AST.DImport . translateImport) (IS.Module.imports mod)
+              decls = map translatePDecl (IS.Module.decls mod)
+           in Right (header :: imps ++ decls)
 
 ||| Parse a single expression from source text.
 export
