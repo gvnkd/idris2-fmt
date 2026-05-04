@@ -89,16 +89,6 @@
           shellHook = ''
             export LD_LIBRARY_PATH="${idris2Wrapped}/lib''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
             export IDRIS2_LIBS="${idris2Wrapped}/lib''${IDRIS2_LIBS:+:$IDRIS2_LIBS}"
-
-            # Symlink ./docs to combined docs for easy browsing
-            if [ -L ./docs ]; then
-              rm ./docs
-            elif [ -e ./docs ]; then
-              echo "Warning: ./docs exists and is not a symlink. Skipping."
-            else
-              ln -s "${combinedDocs}/share/doc" ./docs
-            fi
-
           '';
         };
       }
