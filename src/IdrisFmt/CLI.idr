@@ -38,13 +38,13 @@ parseArgs (_ :: args) = go args CFG.defaultConfig False False False []
     go ("--indent" :: nStr :: rest) cfg c i s fs =
       case S.parsePositive nStr of
         Nothing => Nothing
-        Just n  => go rest (MkConfig n cfg.lineLength) c i s fs
+        Just n  => go rest (MkConfig n cfg.lineLength cfg.alignRules) c i s fs
     go ("--indent" :: []) _ _ _ _ _ =
       Nothing
     go ("--width" :: nStr :: rest) cfg c i s fs =
       case S.parsePositive nStr of
         Nothing => Nothing
-        Just n  => go rest (MkConfig cfg.indentWidth n) c i s fs
+        Just n  => go rest (MkConfig cfg.indentWidth n cfg.alignRules) c i s fs
     go ("--width" :: []) _ _ _ _ _ =
       Nothing
     go (arg :: rest) cfg c i s fs =

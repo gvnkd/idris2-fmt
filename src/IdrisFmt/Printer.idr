@@ -8,6 +8,7 @@ import Text.PrettyPrint.Bernardy.Combinators as PPC
 import Text.PrettyPrint.Bernardy.Interface as PPI
 
 import IdrisFmt.AST as AST
+import IdrisFmt.Align as Align
 import IdrisFmt.Config as CFG
 import IdrisFmt.Comments as C
 import IdrisFmt.Doc as D
@@ -291,9 +292,9 @@ mutual
   export
   Pretty C.Comment where
     prettyPrec _ (C.MkComment C.LineComment content _ _) =
-      line "--" <+> text content
+      text "-- " <+> text content
     prettyPrec _ (C.MkComment C.BlockComment content _ _) =
-      line "{-" <+> text content <+> line "-}"
+      text "{- " <+> text content <+> text " -}"
 
   implDeclDoc : {opts : _} -> Maybe AST.Name -> AST.Name -> List (AST.Expr AST.Name)
              -> Maybe (List (AST.Decl AST.Name)) -> Doc opts
@@ -313,4 +314,5 @@ export
 printModule : CFG.Config -> List (AST.Decl AST.Name) -> String
 printModule cfg decls =
   let opts = D.toLayoutOpts cfg
-   in Doc.render opts (vsep (map pretty decls))
+      rendered = Doc.render opts (vsep (map pretty decls))
+   in Align.applyAlignment cfg rendered

@@ -1,11 +1,13 @@
 module IdrisFmt.Parser
 
 import Data.List as L
+import Data.String as S
 
 import public Parser.Source as PS
 import public Parser.Rule.Source as PRS
 import public Core.Core as CC
 import public Core.FC as CFC
+import public Core.Metadata as CM
 import public Core.Name as CN
 import public Core.Name.Namespace as CNN
 import public Idris.Syntax as IS
@@ -385,6 +387,63 @@ translateImport imp =
       alias = if show imp.nameAs == show imp.path then Nothing else Just (show imp.nameAs)
    in MkImportDecl imp.reexport path alias Nothing Nothing
 
+||| Split source into lines.
+lines' : String -> List String
+lines' s = go [] (unpack s)
+  where
+    go : List Char -> List Char -> List String
+    go acc [] = [pack (reverse acc)]
+    go acc ('\n' :: rest) = pack (reverse acc) :: go [] rest
+    go acc (c :: rest) = go (c :: acc) rest
+
+||| Extract substring from source by 0-based line/column bounds.
+extractText : String -> (Int, Int) -> (Int, Int) -> String
+extractText src (sl, sc) (el, ec) =
+  let ls = lines' src
+      startLn = cast sl
+      startCol  = cast sc
+      endLn   = cast el
+      endCol    = cast ec
+   in if startLn == endLn
+      then case L.drop startLn ls of
+             [] => ""
+             (l :: _) => pack (take (endCol `minus` startCol) (drop startCol (unpack l)))
+      else case L.drop startLn ls of
+             [] => ""
+             (l :: rest) => extractMulti l rest startCol startLn endLn endCol
+  where
+    extractMulti : String -> List String -> Nat -> Nat -> Nat -> Nat -> String
+    extractMulti first rest sc' sl' el' ec' =
+      let f = pack (drop sc' (unpack first))
+          m = take ((el' `minus` sl') `minus` 1) rest
+          l = case L.drop ((el' `minus` sl') `minus` 1) rest of
+                [] => ""
+                (l' :: _) => pack (take ec' (unpack l'))
+       in f ++ "\n" ++ unlines m ++ l
+
+||| Strip comment markers from extracted text.
+stripComment : String -> (C.CommentStyle, String)
+stripComment s =
+  let t = S.trim s
+   in if isPrefixOf "--" t
+       then (C.LineComment, S.trim (substr 2 (length t `minus` 2) t))
+       else if isPrefixOf "{-" t && isSuffixOf "-}" t
+            then (C.BlockComment, S.trim (substr 2 (length t `minus` 4) t))
+           else (C.LineComment, t)
+
+||| Extract comments from parser state.
+extractComments : String -> PRS.State -> List C.Comment
+extractComments src state =
+  let decs = state.decorations
+      commentDecs = filter (\(_, d, _) => d == Comment) decs
+   in map (\((_, start, end), _, _) =>
+             let text = extractText src start end
+                 (style, content) = stripComment text
+                 line = cast (fst start)
+                 col  = cast (snd start)
+              in C.MkComment style content line col)
+          commentDecs
+
 ||| Parse a full module from source text.
 ||| Uses Idris2's built-in parser.
 export
@@ -394,12 +453,14 @@ parseModule src =
       result = PS.runParser origin Nothing src (IP.prog origin)
    in case result of
         Left err => Left (fromError err)
-        Right (_, (_, mod)) =>
+        Right (_, state, mod) =>
           let modName = show (IS.Module.moduleNS mod)
               header = AST.DModule modName []
               imps = map (AST.DImport . translateImport) (IS.Module.imports mod)
               decls = map translatePDecl (IS.Module.decls mod)
-           in Right (header :: imps ++ decls)
+              comments = extractComments src state
+              commentDecls = map AST.DComment comments
+           in Right (header :: imps ++ commentDecls ++ decls)
 
 ||| Parse a single expression from source text.
 export

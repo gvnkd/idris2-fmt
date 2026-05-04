@@ -8,7 +8,7 @@ import IdrisFmt.Config as CFG
 ||| Convert formatter config to prettier LayoutOpts.
 export
 toLayoutOpts : CFG.Config -> LayoutOpts
-toLayoutOpts (MkConfig _ ll) = Opts ll
+toLayoutOpts (MkConfig _ ll _) = Opts ll
 
 ||| Render a document to string using the layout options derived from config.
 export

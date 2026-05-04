@@ -3,6 +3,7 @@ version = 0.1.0
 authors = "Rune"
 sourcedir = "src"
 modules = IdrisFmt.AST
+        , IdrisFmt.Align
         , IdrisFmt.Comments
         , IdrisFmt.Config
         , IdrisFmt.Doc
