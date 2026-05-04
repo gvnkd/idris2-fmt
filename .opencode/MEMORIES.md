@@ -1,0 +1,321 @@
+# Idris2 Fmt — Project Memories
+
+## Type-Hole Workflow (v3)
+Strictly follow these 8 steps. Do not skip or combine.
+
+1. **Select a type hole** from the codebase
+2. **Query compiler:** `idris2 --repl idris2-fmt.ipkg <<'EOF'; :import <Module>; :t rhs_<name>; EOF` (NO `?` prefix!)
+3. **Fill the hole.** If pattern matching needed, consult Idris's casesplit suggestion first
+4. **Check compilation:** `rm -rf build/ttc/ && idris2 --build idris2-fmt.ipkg`
+5. **Query new holes** via REPL to verify expected types match plan
+6. **Compare types** — ensure compiler output matches implementation logic
+7. **Commit** with detailed message referencing step numbers and hole types
+8. **Repeat** until build is clean
+
+### Hole Querying Rules
+| Syntax | Result | Use? |
+|--------|--------|------|
+| `:t rhs_name` | Context + expected type | YES |
+| `:t ?rhs_name` | Nested useless hole | NO |
+
+Holes inside instance bodies (`Functor where ...`) are **NOT** visible to REPL. Only top-level function holes are queryable.
+
+## Build Commands
+
+```bash
+# Build (uses prettier from flake.nix, do NOT install manually)
+nix develop -c idris2 --build idris2-fmt.ipkg
+
+# Check flake
+nix flake check --no-build
+
+# Run executable
+./build/exec/idris2-fmt --help
+```
+
+**CRITICAL:** Do not install Idris2 packages manually to `~/.idris2/`. The flake
+provides `prettier` via `idris2-withpkgs`. Manual installs shadow the Nix
+store paths and cause version conflicts.
+
+## Known Pitfalls
+
+### 1. Code-gen bug: `where`-bound helpers in exported instances
+
+**Symptom:** Chez backend crashes with:
+```
+attempt to reference unbound identifier IdrisFmtC-45Printer-opts-1318
+```
+
+**Cause:** `where`-bound helper functions inside exported `Pretty` instances
+that capture the implicit `{opts : _}` parameter. Idris2's code generator fails
+to thread the implicit through to the helper's closure.
+
+**Fix:** Move all helpers into the `mutual` block as top-level functions.
+They still capture `opts` implicitly, but the code generator handles it
+correctly when they're sibling definitions rather than nested `where` clauses.
+
+### 2. `interface` is a reserved keyword
+
+Cannot use `interface` as a record field name. Use `interfaceName` instead.
+
+### 3. `vappend` is non-associative
+
+Chained `vappend` must be parenthesized:
+```idris
+(a `vappend` b) `vappend` c   -- OK
+a `vappend` b `vappend` c     -- ERROR: non-associative
+```
+
+### 4. Type alias qualification
+
+`import Data.List as L` does NOT make `L.List` work. `List` is defined in
+`Prelude.Basics`, not `Data.List`. Use bare `List` everywhere.
+
+### 5. `Doc.empty` ambiguity
+
+When `Text.PrettyPrint.Bernardy` is imported, `Doc.empty` may be ambiguous
+between `Doc.empty` and `Layout.empty`. Use explicit namespace or ensure the
+type context resolves it. Inside functions with `{opts : _}` parameter,
+`Doc.empty` usually resolves correctly.
+
+### 6. Totality on mutual pretty-printers
+
+`%default total` fails on mutually recursive `Pretty` instances for the AST.
+Use `%default covering` on `Printer.idr` and `Main.idr`.
+
+### 7. Linear config parameters
+
+Do not annotate `Config` with linearity `(1 cfg : Config)` when the config is
+used in the result type AND the function body. Idris2 rejects reusing a
+linear variable in the return type after destructuring it.
+
+### 8. Executable generation
+
+Add `executable = idris2-fmt` to `.ipkg` to produce `build/exec/idris2-fmt`.
+
+### 9. Type alias pattern matching (CRITICAL)
+
+`RigCount` is a type alias for `ZeroOneOmega`. Idris2's pattern matcher
+**does not** unify type aliases with their underlying type in pattern matches.
+
+**Symptom:**
+```
+Mismatch between: RigCount and ZeroOneOmega.
+```
+
+**Fix:** Use `elimSemi` from `Algebra.Semiring` instead of pattern matching:
+```idris
+translateRig c = elimSemi AST.Rig0 AST.Rig1 (const AST.RigW) c
+```
+
+### 10. Adding compiler API dependency
+
+To use Idris2 compiler parser in the flake:
+
+```nix
+idrisLibraries = with idris2-withpkgs.packages.${system}; [
+  prettier
+  idris2api   # or idris2
+];
+```
+
+In `.ipkg`, add `depends = idris2` (NOT `idris2api`). The package name is
+`idris2` even though the flake output is `idris2api`.
+
+### 11. EComment constructor arity
+
+`EComment` takes **two** arguments, not one:
+```idris
+EComment : C.Comment -> Expr nm -> Expr nm   -- comment + fallback expr
+```
+
+### 12. OpStr carries Name, not String
+
+In Idris2's compiler AST, `OpSymbols` carries a `Name`, not a `String`:
+```idris
+data OpStr' nm = OpSymbols nm | Backticked nm
+```
+
+For the formatter, convert with `show n`.
+
+### 13. Namespace MkNS is private
+
+`Namespace` constructor `MkNS` is not exported. Use `show ns` to get a string
+representation, or extract the list through the `nsToList` helper (if available).
+
+### 14. PDef clause name extraction
+
+To translate `PDef` (function definition), extract the function name from the
+LHS of the **first** clause using a recursive `getFnName` helper that traverses
+`PApp`, `PNamedApp`, `PAutoApp`, and `PBracketed` to find the `PRef`.
+
+### 15. Primitive types in PPrimVal
+
+`PPrimVal` carries a `Constant` which can be:
+- Literal values: `I Int`, `BI Integer`, `Str String`, `Ch Char`, `Db Double`
+- Type references: `PrT PrimType` (e.g., `IntType`, `StringType`)
+
+The `PrT` case must be handled to print `Int -> Int` correctly (not `0 -> Int`).
+
+### 16. `case` expressions inside `let` with `Doc` type
+
+**Symptom:**
+```
+Can't solve constraint between: ?opts [locals in scope: ...] and opts
+```
+
+**Cause:** `case` expressions inside `let` bindings with `Doc opts` type
+introduce fresh implicit `opts` variables that don't unify with the outer scope.
+
+**Fix:** Use `if ... then ... else ...` instead of `case` for `Doc`-valued
+expressions, or lift the logic to top-level pattern matching:
+```idris
+-- BAD:
+let x = case y of Nothing => empty; Just a => line a
+-- GOOD:
+let x = maybe empty line y
+
+-- BAD:
+let header = case params of [] => ...; _ => ...
+-- GOOD:
+let header = if null params then ... else ...
+```
+
+### 17. `<++>` adds space even with `empty` left operand
+
+**Symptom:** Leading spaces in output when the left side of `<++>` is `empty`.
+
+**Cause:** `x <++> y = x <+> space <+> y`. If `x = empty`, the result starts
+with a space.
+
+**Fix:** Use conditional composition or `hsep` with filtering:
+```idris
+-- BAD:
+hsep [] <++> pretty n   -- produces " n"
+-- GOOD:
+case fnOpts of
+  [] => pretty n <++> colon <++> pretty ty
+  _  => hsep (map fnOptDoc fnOpts) <++> pretty n <++> colon <++> pretty ty
+```
+
+### 18. `empty `vappend` x` produces leading blank lines
+
+**Symptom:** Blank lines before first declaration or between declarations.
+
+**Cause:** `vsep [] = empty`, and `empty `vappend` x = flush empty <+> x`.
+`flush empty` on `empty` Layout produces `[<"", ""]`, which `unlines` renders
+as a leading blank line.
+
+**Fix:** Avoid `vsep [] `vappend` x`. Check for empty lists first:
+```idris
+-- BAD:
+vsep (map pretty comments) `vappend` body   -- when comments = []
+-- GOOD:
+case comments of
+  [] => body
+  _  => vsep (map pretty comments) `vappend` body
+```
+
+### 19. `putStrLn` doubles trailing newline
+
+**Symptom:** Trailing blank line at end of output.
+
+**Cause:** `Doc.render` uses `unlines` which adds a trailing `\n`. `putStrLn`
+adds another `\n`.
+
+**Fix:** Use `putStr` for stdout output; `render` already ends with `\n`.
+
+### 20. `val` ambiguity between `WithData` and `WithBounds`
+
+**Symptom:** Compiler can't resolve `val` when working with `WithFC`, `WithDoc`,
+etc. from `Core.WithData`.
+
+**Fix:** Hide the conflicting `val`:
+```idris
+%hide Libraries.Text.Bounded.WithBounds.val
+```
+
+### 21. `WithData` projections overload resolution
+
+**Symptom:** Compiler tries many `.names` / `.rig` / etc. overloads and fails.
+
+**Fix:** Use explicit `WithData.get "fieldname"` instead of `.fieldname`, or
+pattern match on constructors where possible. For `BasicMultiBinder'`, pattern
+match on `MkBasicMultiBinder` to access fields directly.
+
+### 22. `toPath` vs `unsafeUnfoldModuleIdent` for module paths
+
+**Symptom:** Import paths like `List Data` (reversed) or `Data/List` (wrong
+separator).
+
+**Fix:** `toPath` returns file-system-style paths with `/` separator.
+Split on `/` and join with `.` for printing:
+```idris
+translateImport imp =
+  let path = splitString '/' (toPath imp.path)
+   in MkImportDecl imp.reexport path alias Nothing Nothing
+```
+And in printer, join with `.`:
+```idris
+line (concat (intersperse "." name))
+```
+
+### 23. `PInfer` for implicit parameter types
+
+**Symptom:** Interface parameters show as `(a : ?unsupported_?)`.
+
+**Cause:** Unannotated interface parameters are parsed as `PInfer _` (infer
+the type), not `PType`.
+
+**Fix:** Handle `PInfer` in `translatePTerm`:
+```idris
+translatePTerm (PInfer _) = AST.EImplicit
+```
+
+## Architecture
+
+- **Pipeline:** `parseModule` >=> `transformModule` >=> `printModule`
+- **Fusion point:** `formatSource` composes all passes with `map` and function
+  composition — no intermediate structures materialized.
+- **Transform passes:** `sortImports` (stable, only sorts contiguous import
+  blocks) and `mergeBlankLines` (collapses consecutive `DBlank` into one).
+- **Printer strategy:** Implement `Pretty` interface from `prettier` for every
+  AST type. Precedence-aware via `prettyPrec`. Layout decisions delegated to
+  `prettier`'s optimal layout engine (`<|>`, `ifMultiline`, `hang`, `sep`).
+- **Parser bridge:** Calls `Parser.Source.runParser` with `Idris.Parser.prog`.
+  Translates compiler AST (`PTerm`, `PDecl`, `PClause`) to formatter AST.
+
+## Current Status (Phase 3 Complete)
+
+**Implemented translations:**
+- `PClaim` → `DClaim` (type signatures)
+- `PDef` → `DDef` (function definitions with clause translation)
+- `PFixity` → `DFixity` (fixity declarations)
+- `PNamespace` → `DNamespace` (namespace blocks)
+- `PData` → `DData` (data types with param extraction)
+- `PRecord` → `DRecord` (records with field extraction)
+- `PInterface` → `DInterface` (interfaces with param/constraint translation)
+- `PImplementation` → `DImpl` (implementations)
+- `PRef`, `PPi`, `PLam`, `PApp`, `PPrimVal` (with `PrimType`), `PType`,
+  `PImplicit`, `PInfer`, `PHole`, `PDelayed`, `PDelay`, `PForce`,
+  `PBracketed`, `PDotted`, `PAs`, `POp`, `PString`, `PList`, `PPair`,
+  `PUnit`, `PIfThenElse`, `PIdiom` → `Expr`
+- `MkPatClause`, `MkImpossible` → `Clause`
+- Module headers (`DModule`) and imports (`DImport`) from parser `Module`
+
+**Still placeholder comments:**
+- `PParameters`, `PUsing`, `PMutual`
+- `PTransform`, `PRunElabDecl`, `PDirective`, `PBuiltin`
+
+## Next Steps (Phase 4)
+
+1. **Attach comments:** Extract comment annotations from parser `State.decorations`
+   and attach to AST nodes.
+2. **Fix `=>` vs `=` in clauses:** Distinguish function clauses (`=`) from
+   case/lambda clauses (`=>`). Currently all `MkClause` prints `=`.
+3. **Record constructors:** Extract `conName` from `MkPRecord`.
+4. **Round-trip tests:** Parse -> Format -> Parse should yield equivalent AST.
+5. **Handle more PTerm constructs:** `PDoBlock`, `PCase`, `PComprehension`,
+   `PRewrite`, `PRange`, etc.
+6. **Restore totality:** Fill remaining holes and switch modules back to
+   `%default total`.
