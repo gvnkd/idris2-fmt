@@ -1,3 +1,3 @@
 module Imports
 import Data.List
-public export import Data.String
+import public Data.String

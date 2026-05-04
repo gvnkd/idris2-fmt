@@ -86,6 +86,14 @@ mutual
       pretty f <++> braces (pretty n <++> equals <++> pretty x)
     prettyPrec _ (EAutoApp f x) =
       pretty f <++> pretty x
+    prettyPrec _ (EWithApp f x) =
+      pretty f <++> keyword "with" <++> pretty x
+    prettyPrec _ (EPostfixApp rec fields) =
+      let fieldDocs = map (line . show) fields
+       in pretty rec <+> hcat (concatMap (\f => [line ".", f]) fieldDocs)
+    prettyPrec _ (EPostfixAppPartial fields) =
+      let fieldDocs = map (line . show) fields
+       in hcat (concatMap (\f => [line ".", f]) fieldDocs)
     prettyPrec _ (EDelayed x) = pretty x
     prettyPrec _ (EDelay x) = pretty x
     prettyPrec _ (EForce x) = pretty x
@@ -104,9 +112,12 @@ mutual
     prettyPrec _ (EIdiom _ x) =
       lbracket <+> pipe <+> pretty x <+> pipe <+> rbracket
     prettyPrec _ (EIf c t f) =
-      keyword "if" <++> pretty c
-      <++> keyword "then" <++> pretty t
-      <++> keyword "else" <++> pretty f
+      let cond = keyword "if" <++> pretty c
+          thenBranch = keyword "then" <++> pretty t
+          elseBranch = keyword "else" <++> pretty f
+          horizontal = cond <++> thenBranch <++> elseBranch
+          vertical = cond `vappend` indent 2 (thenBranch `vappend` indent 2 elseBranch)
+       in ifMultiline horizontal vertical
     prettyPrec _ (EHole s) = line "?" <+> line s
     prettyPrec _ EType = keyword "Type"
     prettyPrec _ EImplicit = line "_"
@@ -277,11 +288,11 @@ mutual
   importDoc : {opts : _} -> Bool -> List String -> Maybe String -> Doc opts
   importDoc reexport name Nothing =
     if reexport
-    then keyword "public" <++> keyword "export" <++> keyword "import" <++> line (concat (intersperse "." name))
+    then keyword "import" <++> keyword "public" <++> line (concat (intersperse "." name))
     else keyword "import" <++> line (concat (intersperse "." name))
   importDoc reexport name (Just a) =
     if reexport
-    then keyword "public" <++> keyword "export" <++> keyword "import" <++> line (concat (intersperse "." name)) <++> keyword "as" <++> line a
+    then keyword "import" <++> keyword "public" <++> line (concat (intersperse "." name)) <++> keyword "as" <++> line a
     else keyword "import" <++> line (concat (intersperse "." name)) <++> keyword "as" <++> line a
 
   export

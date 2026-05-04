@@ -93,8 +93,11 @@ mutual
     ELam        : RigCount -> PiInfo (Expr nm) -> Expr nm -> Expr nm -> Expr nm -> Expr nm
     ELet        : RigCount -> Expr nm -> Expr nm -> Expr nm -> Expr nm -> List (Clause nm) -> Expr nm
     EApp        : Expr nm -> Expr nm -> Expr nm
+    EWithApp    : Expr nm -> Expr nm -> Expr nm
     ENamedApp   : Expr nm -> nm -> Expr nm -> Expr nm
     EAutoApp    : Expr nm -> Expr nm -> Expr nm
+    EPostfixApp : Expr nm -> List nm -> Expr nm
+    EPostfixAppPartial : List nm -> Expr nm
     EDelayed    : Expr nm -> Expr nm
     EDelay      : Expr nm -> Expr nm
     EForce      : Expr nm -> Expr nm

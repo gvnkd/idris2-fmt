@@ -177,11 +177,34 @@ mutual
              (translatePTerm pat) (translatePTerm ty) (translatePTerm scope)
   translatePTerm (PApp _ f x) =
     AST.EApp (translatePTerm f) (translatePTerm x)
+  translatePTerm (PWithApp _ f x) =
+    AST.EWithApp (translatePTerm f) (translatePTerm x)
+  translatePTerm (PNamedApp _ f n x) =
+    AST.ENamedApp (translatePTerm f) (translateName n) (translatePTerm x)
+  translatePTerm (PAutoApp _ f x) =
+    AST.EAutoApp (translatePTerm f) (translatePTerm x)
+  translatePTerm (PPostfixApp _ rec fields) =
+    AST.EPostfixApp (translatePTerm rec) (map (translateName . snd) fields)
+  translatePTerm (PPostfixAppPartial _ fields) =
+    AST.EPostfixAppPartial (map (translateName . snd) fields)
+  translatePTerm (PPrefixOp _ op x) =
+    AST.EPrefixOp (translateOpStr op.val) (translatePTerm x)
+  translatePTerm (PSectionL _ op x) =
+    AST.ESectionL (translateOpStr op.val) (translatePTerm x)
+  translatePTerm (PSectionR _ x op) =
+    AST.ESectionR (translatePTerm x) (translateOpStr op.val)
+  translatePTerm (PEq _ l r) =
+    AST.EOp (translatePTerm l) (AST.OpSymbols "=") (translatePTerm r)
   translatePTerm (PPrimVal _ c) = translateConstant c
   translatePTerm (PType _) = AST.EType
   translatePTerm (PImplicit _) = AST.EImplicit
   translatePTerm (PInfer _) = AST.EImplicit
   translatePTerm (PHole _ _ s) = AST.EHole s
+  translatePTerm (PSearch _ d) = AST.EHole ("?search_" ++ show d)
+  translatePTerm (PQuote _ x) = AST.EQuote (translatePTerm x)
+  translatePTerm (PUnquote _ x) = AST.EUnquote (translatePTerm x)
+  translatePTerm (PRunElab _ x) = AST.EComment (MkComment LineComment "runElab" 0 0) (translatePTerm x)
+  translatePTerm (PBang _ x) = translatePTerm x
   translatePTerm (PDelayed _ lr x) = AST.EDelayed (translatePTerm x)
   translatePTerm (PDelay _ x) = AST.EDelay (translatePTerm x)
   translatePTerm (PForce _ x) = AST.EForce (translatePTerm x)
@@ -216,6 +239,18 @@ mutual
     AST.EComment (MkComment LineComment "range" 0 0) (translatePTerm start)
   translatePTerm (PRangeStream _ start step) =
     AST.EComment (MkComment LineComment "range stream" 0 0) (translatePTerm start)
+  translatePTerm (PLet _ rig pat ty val scope alts) =
+    AST.ELet (translateRig rig) (translatePTerm pat) (translatePTerm ty) (translatePTerm val) (translatePTerm scope) (map (translatePClauseAsCase_ translatePTerm) alts)
+  translatePTerm (PLocal _ decls scope) =
+    AST.ELocal [] (translatePTerm scope)
+  translatePTerm (NewPi x) =
+    AST.EComment (MkComment LineComment "NewPi" 0 0) AST.EImplicit
+  translatePTerm (Forall x) =
+    AST.EComment (MkComment LineComment "Forall" 0 0) AST.EImplicit
+  translatePTerm (PMultiline _ _ _ _) =
+    AST.EComment (MkComment LineComment "multiline string" 0 0) AST.EImplicit
+  translatePTerm (PUnifyLog _ _ x) = translatePTerm x
+  translatePTerm (PWithUnambigNames _ _ x) = translatePTerm x
   translatePTerm tm = AST.EHole ("unsupported_" ++ show tm)
 
 ||| Translate compiler PClause to formatter AST Clause.
