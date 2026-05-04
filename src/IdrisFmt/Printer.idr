@@ -78,7 +78,7 @@ mutual
                                       in let thenBranch = keyword "then" <++> pretty t
                                          in let elseBranch = keyword "else" <++> pretty f
                                             in let horizontal = cond <++> thenBranch <++> elseBranch
-                                               in let vertical = cond `vappend` indent 2 (thenBranch `vappend` indent 2 elseBranch)
+                                               in let vertical = (cond `vappend` indent 2 thenBranch) `vappend` indent 2 elseBranch
                                                   in ifMultiline horizontal vertical
            prettyPrec _ (EHole s) = line "?" <+> line s
            prettyPrec _ EType = keyword "Type"
@@ -177,7 +177,7 @@ mutual
                                                         in let base = pretty n <++> colon <++> pretty ty <++> keyword "where"
                                                            in let header = if null params
                                                                              then keyword "data" <++> base
-                                                                               else keyword "data" <++> pretty n <++> paramsDoc <++> colon <++> pretty ty <++> keyword "where"
+                                                                             else keyword "data" <++> pretty n <++> paramsDoc <++> colon <++> pretty ty <++> keyword "where"
                                                               in header `vappend` indent 2 (vsep (map pretty cons))
   export implementation Pretty (AST.RecordDecl AST.Name) where
            prettyPrec _ (MkRecordDecl n params conName fields) = let paramsDoc = hsep (map (\(p , ty) => parens (pretty p <++> colon <++> pretty ty)) params)
@@ -187,7 +187,7 @@ mutual
                                                                     in let base = pretty n <++> keyword "where"
                                                                        in let header = if null params
                                                                                          then keyword "record" <++> base
-                                                                                           else keyword "record" <++> pretty n <++> paramsDoc <++> keyword "where"
+                                                                                         else keyword "record" <++> pretty n <++> paramsDoc <++> keyword "where"
                                                                           in header `vappend` indent 2 (vsep (conDoc ++ map pretty fields))
   interfaceParamDoc : {opts : _} -> (AST.Name , AST.Expr AST.Name) -> Doc opts
   interfaceParamDoc (p , AST.EImplicit) = pretty p
@@ -197,7 +197,7 @@ mutual
                                                                in let base = pretty n <++> keyword "where"
                                                                   in let header = if null params
                                                                                     then keyword "interface" <++> base
-                                                                                      else keyword "interface" <++> pretty n <++> paramsDoc <++> keyword "where"
+                                                                                    else keyword "interface" <++> pretty n <++> paramsDoc <++> keyword "where"
                                                                      in header `vappend` indent 2 (vsep (map pretty methods))
   export implementation Pretty (AST.ImplDecl AST.Name) where
            prettyPrec _ (MkImplDecl name interfaceName params body) = implDeclDoc name interfaceName params body
@@ -206,10 +206,10 @@ mutual
   importDoc : {opts : _} -> Bool -> List String -> Maybe String -> Doc opts
   importDoc reexport name Nothing = if reexport
                                       then keyword "import" <++> keyword "public" <++> line (concat (intersperse "." name))
-                                        else keyword "import" <++> line (concat (intersperse "." name))
+                                      else keyword "import" <++> line (concat (intersperse "." name))
   importDoc reexport name (Just a) = if reexport
                                        then keyword "import" <++> keyword "public" <++> line (concat (intersperse "." name)) <++> keyword "as" <++> line a
-                                         else keyword "import" <++> line (concat (intersperse "." name)) <++> keyword "as" <++> line a
+                                       else keyword "import" <++> line (concat (intersperse "." name)) <++> keyword "as" <++> line a
   export implementation Pretty AST.ImportDecl where
            prettyPrec _ (MkImportDecl reexport name alias _ _) = importDoc reexport name alias
   export showCharLit : Char -> String
