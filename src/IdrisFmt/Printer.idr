@@ -181,7 +181,7 @@ mutual
       keyword "namespace" <++> hsep (map line ns) <++> keyword "where"
       `vappend` indent 2 (vsep (map pretty decls))
     prettyPrec _ (DMutual decls) =
-      keyword "mutual" <++> keyword "where"
+      keyword "mutual"
       `vappend` indent 2 (vsep (map pretty decls))
     prettyPrec _ (DParams params decls) =
       keyword "parameters" <++> parens (hsep (map paramDoc params))
