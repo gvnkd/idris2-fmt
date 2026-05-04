@@ -10,18 +10,20 @@ import public IdrisFmt.Comments as C
 
 ||| Name representation, parameterized for future extension.
 public export
-data Name = UN String | MN String Int
+data Name = UN String | MN String Int | NS (List String) Name
 
 export
 Eq Name where
   (UN x)   == (UN y)   = x == y
   (MN x i) == (MN y j) = x == y && i == j
+  (NS xs x) == (NS ys y) = xs == ys && x == y
   _ == _ = False
 
 export
 Show Name where
   show (UN s)   = s
   show (MN s i) = s ++ "_" ++ show i
+  show (NS ns n) = concat (intersperse "." (reverse ns)) ++ "." ++ show n
 
 ||| Multiplicity annotation (Quantitative Type Theory).
 public export
@@ -94,6 +96,7 @@ mutual
   data Expr : Type -> Type where
     ERef        : nm -> Expr nm
     EPi         : RigCount -> PiInfo (Expr nm) -> Maybe nm -> Expr nm -> Expr nm -> Expr nm
+    EForall     : List nm -> Expr nm -> Expr nm
     ELam        : RigCount -> PiInfo (Expr nm) -> Expr nm -> Expr nm -> Expr nm -> Expr nm
     ELet        : RigCount -> Expr nm -> Expr nm -> Expr nm -> Expr nm -> List (Clause nm) -> Expr nm
     EApp        : Expr nm -> Expr nm -> Expr nm

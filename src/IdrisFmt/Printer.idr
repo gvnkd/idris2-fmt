@@ -56,6 +56,8 @@ mutual
   Pretty AST.Name where
     prettyPrec _ (AST.UN s)   = D.ident s
     prettyPrec _ (AST.MN s i) = D.ident (s ++ "_" ++ show i)
+    prettyPrec _ (AST.NS ns n) =
+      D.ident (concat (L.intersperse "." (reverse ns)) ++ ".") <+> pretty n
 
   export
   Pretty (AST.Expr AST.Name) where
@@ -73,6 +75,9 @@ mutual
         pretty arg <++> line "->" <++> pretty ret
     prettyPrec d (EPi _ _ _ arg ret) =
       parenthesise (d > Open) $ pretty arg <++> line "->" <++> pretty ret
+    prettyPrec d (EForall ns scope) =
+      parenthesise (d > Open) $
+        keyword "forall" <++> hsep (map pretty ns) <++> line "." <++> pretty scope
     prettyPrec d (ELam rig _ pat ty scope) =
       parenthesise (d > Open) $
         line "\\" <+> lamBinder rig pat ty <++> line "=>" <++> pretty scope
@@ -278,10 +283,14 @@ mutual
                    else keyword "record" <++> pretty n <++> paramsDoc <++> keyword "where"
        in header `vappend` indent 2 (vsep (conDoc ++ map pretty fields))
 
+  interfaceParamDoc : {opts : _} -> (AST.Name, AST.Expr AST.Name) -> Doc opts
+  interfaceParamDoc (p, AST.EImplicit) = pretty p
+  interfaceParamDoc (p, ty) = parens (pretty p <++> colon <++> pretty ty)
+
   export
   Pretty (AST.InterfaceDecl AST.Name) where
     prettyPrec _ (MkInterfaceDecl n params _ methods) =
-      let paramsDoc = hsep (map (\(p, ty) => parens (pretty p <++> colon <++> pretty ty)) params)
+      let paramsDoc = hsep (map interfaceParamDoc params)
           base = pretty n <++> keyword "where"
           header = if null params then keyword "interface" <++> base
                    else keyword "interface" <++> pretty n <++> paramsDoc <++> keyword "where"

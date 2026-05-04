@@ -41,7 +41,7 @@ translateName (UN (Basic s)) = AST.UN s
 translateName (UN (Field s)) = AST.UN s
 translateName (UN Underscore) = AST.UN "_"
 translateName (MN s i) = AST.MN s i
-translateName (NS ns n) = translateName n
+translateName (NS ns n) = AST.NS (CNN.unsafeUnfoldNamespace ns) (translateName n)
 translateName (Nested i n) = translateName n
 translateName (CaseBlock s i) = AST.MN s i
 translateName (WithBlock s i) = AST.MN s i
@@ -254,9 +254,9 @@ mutual
      in AST.EPi (translateRig rig) info (Just name) ty scope
   translatePTerm (Forall x) =
     let (names, scope) = x.val
-        ns = map (translateName . val) names
+        ns = map (translateName . val) (forget names)
         sc = translatePTerm scope
-     in foldr (\n, acc => AST.EPi AST.RigW AST.Implicit (Just n) AST.EType acc) sc ns
+     in AST.EForall ns sc
   translatePTerm (PMultiline _ _ _ _) =
     AST.EComment (MkComment LineComment "multiline string" 0 0) AST.EImplicit
   translatePTerm (PUnifyLog _ _ x) = translatePTerm x
