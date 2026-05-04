@@ -1,4 +1,5 @@
 module DoBlocks
+
 foo : IO ()
 foo = do
         putStrLn "hello"

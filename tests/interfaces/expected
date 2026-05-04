@@ -1,5 +1,7 @@
 module Interfaces
+
 interface Show (a : _) where
   show : a -> String
+
 implementation Show Int where
   show x = show x

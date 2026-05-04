@@ -1,4 +1,5 @@
 module Namespace
+
 namespace Foo where
   export foo : Int -> Int
   foo x = x

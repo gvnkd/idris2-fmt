@@ -517,13 +517,22 @@ commentPair : C.Comment -> (Nat, AST.Decl AST.Name)
 commentPair c = (c.line, AST.DComment c)
 
 ||| Merge declarations and comments by source line number.
-mergeByLine : List (Nat, AST.Decl AST.Name) -> List (Nat, AST.Decl AST.Name) -> List (AST.Decl AST.Name)
-mergeByLine [] ys = map snd ys
-mergeByLine xs [] = map snd xs
+mergeByLine : List (Nat, AST.Decl AST.Name) -> List (Nat, AST.Decl AST.Name) -> List (Nat, AST.Decl AST.Name)
+mergeByLine [] ys = ys
+mergeByLine xs [] = xs
 mergeByLine ((lx, x) :: xs) ((ly, y) :: ys) =
   if lx <= ly
-  then x :: mergeByLine xs ((ly, y) :: ys)
-  else y :: mergeByLine ((lx, x) :: xs) ys
+  then (lx, x) :: mergeByLine xs ((ly, y) :: ys)
+  else (ly, y) :: mergeByLine ((lx, x) :: xs) ys
+
+||| Insert blank lines between declarations based on line gaps.
+insertBlanks : List (Nat, AST.Decl AST.Name) -> List (AST.Decl AST.Name)
+insertBlanks [] = []
+insertBlanks [(_, d)] = [d]
+insertBlanks ((l1, d1) :: (l2, d2) :: rest) =
+  if l2 > l1 + 1
+  then d1 :: AST.DBlank 1 :: insertBlanks ((l2, d2) :: rest)
+  else d1 :: insertBlanks ((l2, d2) :: rest)
 
 ||| Parse a full module from source text.
 ||| Uses Idris2's built-in parser.
@@ -541,7 +550,8 @@ parseModule src =
               decls = map translatePDecl (IS.Module.decls mod)
               comments = map commentPair (extractComments src state)
               merged = mergeByLine (header :: imps ++ decls) comments
-           in Right merged
+              withBlanks = insertBlanks merged
+           in Right withBlanks
 
 ||| Parse a single expression from source text.
 export
