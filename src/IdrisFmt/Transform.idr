@@ -20,8 +20,9 @@ importCmp d1 d2 = compare (importName d1) (importName d2)
 collectImports : List (AST.Decl AST.Name) -> (List (AST.Decl AST.Name) , List (AST.Decl AST.Name))
 
 collectImports [] = ([] , [])
-collectImports (d@(AST.DImport _) :: rest) = let (imports , rest') = collectImports rest
-                                             in (d :: imports , rest')
+collectImports (d@(AST.DImport _) :: rest) =
+  let (imports , rest') = collectImports rest
+  in (d :: imports , rest')
 collectImports rest = ([] , rest)
 
 ||| Sort import declarations alphabetically.
@@ -29,18 +30,20 @@ collectImports rest = ([] , rest)
 sortImports : List (AST.Decl AST.Name) -> List (AST.Decl AST.Name)
 
 sortImports [] = []
-sortImports (d :: rest) = if isImport d
-                            then let (imports , nonImports) = collectImports (d :: rest)
-                                 in L.sortBy importCmp imports ++ sortImports (assert_smaller (d :: rest) nonImports)
-                              else d :: sortImports rest
+sortImports (d :: rest) =
+  if isImport d
+    then let (imports , nonImports) = collectImports (d :: rest)
+         in L.sortBy importCmp imports ++ sortImports (assert_smaller (d :: rest) nonImports)
+    else d :: sortImports rest
 
 ||| Merge consecutive blank-line declarations into a single blank.
 mergeBlankLines : List (AST.Decl AST.Name) -> List (AST.Decl AST.Name)
 
 mergeBlankLines [] = []
-mergeBlankLines (AST.DBlank _ :: rest) = case mergeBlankLines rest of
-                                           (AST.DBlank _ :: rest') => AST.DBlank 1 :: rest'
-                                           rest'                   => AST.DBlank 1 :: rest'
+mergeBlankLines (AST.DBlank _ :: rest) =
+  case mergeBlankLines rest of
+    (AST.DBlank _ :: rest') => AST.DBlank 1 :: rest'
+    rest'                   => AST.DBlank 1 :: rest'
 mergeBlankLines (d :: rest) = d :: mergeBlankLines rest
 
 ||| Apply all AST transformations before printing.

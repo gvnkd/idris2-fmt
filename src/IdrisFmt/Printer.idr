@@ -45,41 +45,57 @@ mutual
   export implementation Pretty AST.Name where
            prettyPrec _ (AST.UN s) = D.ident s
            prettyPrec _ (AST.MN s i) = D.ident (s ++ "_" ++ show i)
-           prettyPrec _ (AST.NS ns n) = D.ident (concat (L.intersperse "." (reverse ns)) ++ ".") <+> pretty n
+           prettyPrec _ (AST.NS ns n) =
+             D.ident (concat (L.intersperse "." (reverse ns)) ++ ".") <+> pretty n
   export implementation Pretty (AST.Expr AST.Name) where
            prettyPrec _ (ERef n) = pretty n
-           prettyPrec d (EPi rig Explicit (Just n) arg ret) = parenthesise (d > Open) $ parens (prettyRig rig <+> pretty n <++> colon <++> pretty arg) <++> line "->" <++> pretty ret
-           prettyPrec d (EPi rig Implicit (Just n) arg ret) = parenthesise (d > Open) $ braces (prettyRig rig <+> pretty n <++> colon <++> pretty arg) <++> line "->" <++> pretty ret
-           prettyPrec d (EPi rig Explicit Nothing arg ret) = parenthesise (d > Open) $ pretty arg <++> line "->" <++> pretty ret
-           prettyPrec d (EPi _ _ _ arg ret) = parenthesise (d > Open) $ pretty arg <++> line "->" <++> pretty ret
-           prettyPrec d (EForall ns scope) = parenthesise (d > Open) $ keyword "forall" <++> hsep (map pretty ns) <++> line "." <++> pretty scope
-           prettyPrec d (ELam rig _ pat ty scope) = parenthesise (d > Open) $ line "\\" <+> lamBinder rig pat ty <++> line "=>" <++> pretty scope
-           prettyPrec d (ELet rig pat ty val scope _) = parenthesise (d > Open) $ keyword "let" <++> letBinder rig pat ty <++> equals <++> pretty val `vappend` keyword "in" <++> pretty scope
-           prettyPrec d (EApp f x) = parenthesise (d >= App) $ prettyPrec Open f <++> prettyPrec App x
-           prettyPrec _ (ENamedApp f n x) = pretty f <++> braces (pretty n <++> equals <++> pretty x)
+           prettyPrec d (EPi rig Explicit (Just n) arg ret) =
+             parenthesise (d > Open) $ parens (prettyRig rig <+> pretty n <++> colon <++> pretty arg) <++> line "->" <++> pretty ret
+           prettyPrec d (EPi rig Implicit (Just n) arg ret) =
+             parenthesise (d > Open) $ braces (prettyRig rig <+> pretty n <++> colon <++> pretty arg) <++> line "->" <++> pretty ret
+           prettyPrec d (EPi rig Explicit Nothing arg ret) =
+             parenthesise (d > Open) $ pretty arg <++> line "->" <++> pretty ret
+           prettyPrec d (EPi _ _ _ arg ret) =
+             parenthesise (d > Open) $ pretty arg <++> line "->" <++> pretty ret
+           prettyPrec d (EForall ns scope) =
+             parenthesise (d > Open) $ keyword "forall" <++> hsep (map pretty ns) <++> line "." <++> pretty scope
+           prettyPrec d (ELam rig _ pat ty scope) =
+             parenthesise (d > Open) $ line "\\" <+> lamBinder rig pat ty <++> line "=>" <++> pretty scope
+           prettyPrec d (ELet rig pat ty val scope _) =
+             parenthesise (d > Open) $ keyword "let" <++> letBinder rig pat ty <++> equals <++> pretty val `vappend` keyword "in" <++> pretty scope
+           prettyPrec d (EApp f x) =
+             parenthesise (d >= App) $ prettyPrec Open f <++> prettyPrec App x
+           prettyPrec _ (ENamedApp f n x) =
+             pretty f <++> braces (pretty n <++> equals <++> pretty x)
            prettyPrec _ (EAutoApp f x) = pretty f <++> pretty x
            prettyPrec _ (EWithApp f x) = pretty f <++> keyword "with" <++> pretty x
-           prettyPrec _ (EPostfixApp rec fields) = let fieldDocs = map (line . show) fields
-                                                   in pretty rec <+> hcat (concatMap (\f => [line ".", f]) fieldDocs)
-           prettyPrec _ (EPostfixAppPartial fields) = let fieldDocs = map (line . show) fields
-                                                      in hcat (concatMap (\f => [line ".", f]) fieldDocs)
+           prettyPrec _ (EPostfixApp rec fields) =
+             let fieldDocs = map (line . show) fields
+             in pretty rec <+> hcat (concatMap (\f => [line ".", f]) fieldDocs)
+           prettyPrec _ (EPostfixAppPartial fields) =
+             let fieldDocs = map (line . show) fields
+             in hcat (concatMap (\f => [line ".", f]) fieldDocs)
            prettyPrec _ (EDelayed x) = pretty x
            prettyPrec _ (EDelay x) = pretty x
            prettyPrec _ (EForce x) = pretty x
-           prettyPrec _ (ECase scrut alts) = keyword "case" <++> pretty scrut <++> keyword "of" `vappend` indent 2 (vsep (map pretty alts))
-           prettyPrec _ (ELocal decls scope) = (keyword "let" <++> keyword "where" `vappend` indent 2 (vsep (map pretty decls))) `vappend` (keyword "in" <++> pretty scope)
+           prettyPrec _ (ECase scrut alts) =
+             keyword "case" <++> pretty scrut <++> keyword "of" `vappend` indent 2 (vsep (map pretty alts))
+           prettyPrec _ (ELocal decls scope) =
+             (keyword "let" <++> keyword "where" `vappend` indent 2 (vsep (map pretty decls))) `vappend` (keyword "in" <++> pretty scope)
            prettyPrec _ (EList xs) = list (map pretty xs)
            prettyPrec _ (ESnocList xs) = snocList (map pretty (xs <>> []))
            prettyPrec _ (EPair x y) = parens (pretty x <++> comma <++> pretty y)
            prettyPrec _ (EString parts) = dquotes (hcat (map pretty parts))
-           prettyPrec _ (EDo _ stmts) = keyword "do" `vappend` indent 2 (vsep (map pretty stmts))
+           prettyPrec _ (EDo _ stmts) =
+             keyword "do" `vappend` indent 2 (vsep (map pretty stmts))
            prettyPrec _ (EIdiom _ x) = lbracket <+> pipe <+> pretty x <+> pipe <+> rbracket
-           prettyPrec _ (EIf c t f) = let cond = keyword "if" <++> pretty c
-                                      in let thenBranch = keyword "then" <++> pretty t
-                                         in let elseBranch = keyword "else" <++> pretty f
-                                            in let horizontal = cond <++> thenBranch <++> elseBranch
-                                               in let vertical = (cond `vappend` indent 2 thenBranch) `vappend` indent 2 elseBranch
-                                                  in ifMultiline horizontal vertical
+           prettyPrec _ (EIf c t f) =
+             let cond = keyword "if" <++> pretty c
+             in let thenBranch = keyword "then" <++> pretty t
+                in let elseBranch = keyword "else" <++> pretty f
+                   in let horizontal = cond <++> thenBranch <++> elseBranch
+                      in let vertical = (cond `vappend` indent 2 thenBranch) `vappend` indent 2 elseBranch
+                         in ifMultiline horizontal vertical
            prettyPrec _ (EHole s) = line "?" <+> line s
            prettyPrec _ EType = keyword "Type"
            prettyPrec _ EUnit = line "()"
@@ -87,7 +103,8 @@ mutual
            prettyPrec _ (EQuote x) = line "`" <+> pretty x <+> line "`"
            prettyPrec _ (EUnquote x) = line "~" <+> pretty x
            prettyPrec _ (EPrim c) = pretty c
-           prettyPrec d (EOp l op r) = parenthesise (d >= App) $ prettyPrec Open l <++> pretty op <++> prettyPrec Open r
+           prettyPrec d (EOp l op r) =
+             parenthesise (d >= App) $ prettyPrec Open l <++> pretty op <++> prettyPrec Open r
            prettyPrec _ (EPrefixOp op x) = pretty op <++> pretty x
            prettyPrec _ (ESectionL op x) = parens (pretty op <++> pretty x)
            prettyPrec _ (ESectionR x op) = parens (pretty x <++> pretty op)
@@ -102,116 +119,144 @@ mutual
   export implementation Pretty (AST.Decl AST.Name) where
            prettyPrec _ (DModule name _) = keyword "module" <++> line name
            prettyPrec _ (DImport imp) = pretty imp
-           prettyPrec _ (DClaim comments vis n ty fnOpts) = let fnOptsDoc = hsep (map fnOptDoc fnOpts)
-                                                            in let visDoc = visibilityDoc vis
-                                                               in let base = case fnOpts of
-                                                                               [] => visDoc <+> pretty n <++> colon <++> pretty ty
-                                                                               _  => visDoc <+> fnOptsDoc <++> pretty n <++> colon <++> pretty ty
-                                                                  in case comments of
-                                                                       [] => base
-                                                                       _  => vsep (map pretty comments) `vappend` base
-           prettyPrec _ (DDef comments n clauses) = let body = vsep (map pretty clauses)
-                                                    in case comments of
-                                                         [] => body
-                                                         _  => vsep (map pretty comments) `vappend` body
-           prettyPrec _ (DData comments vis dd) = let base = visibilityDoc vis <+> pretty dd
-                                                  in case comments of
-                                                       [] => base
-                                                       _  => vsep (map pretty comments) `vappend` base
-           prettyPrec _ (DRecord comments vis rd) = let base = visibilityDoc vis <+> pretty rd
-                                                    in case comments of
-                                                         [] => base
-                                                         _  => vsep (map pretty comments) `vappend` base
-           prettyPrec _ (DInterface comments vis id) = let base = visibilityDoc vis <+> pretty id
-                                                       in case comments of
-                                                            [] => base
-                                                            _  => vsep (map pretty comments) `vappend` base
+           prettyPrec _ (DClaim comments vis n ty fnOpts) =
+             let fnOptsDoc = hsep (map fnOptDoc fnOpts)
+             in let visDoc = visibilityDoc vis
+                in let base = case fnOpts of
+                                [] => visDoc <+> pretty n <++> colon <++> pretty ty
+                                _ =>
+                                  visDoc <+> fnOptsDoc <++> pretty n <++> colon <++> pretty ty
+                   in case comments of
+                        [] => base
+                        _  => vsep (map pretty comments) `vappend` base
+           prettyPrec _ (DDef comments n clauses) =
+             let body = vsep (map pretty clauses)
+             in case comments of
+                  [] => body
+                  _  => vsep (map pretty comments) `vappend` body
+           prettyPrec _ (DData comments vis dd) =
+             let base = visibilityDoc vis <+> pretty dd
+             in case comments of
+                  [] => base
+                  _  => vsep (map pretty comments) `vappend` base
+           prettyPrec _ (DRecord comments vis rd) =
+             let base = visibilityDoc vis <+> pretty rd
+             in case comments of
+                  [] => base
+                  _  => vsep (map pretty comments) `vappend` base
+           prettyPrec _ (DInterface comments vis id) =
+             let base = visibilityDoc vis <+> pretty id
+             in case comments of
+                  [] => base
+                  _  => vsep (map pretty comments) `vappend` base
            prettyPrec _ (DImpl _ vis impl) = let base = visibilityDoc vis <+> pretty impl
                                              in base
            prettyPrec _ (DFixity fd) = pretty fd
-           prettyPrec _ (DNamespace ns decls) = keyword "namespace" <++> hsep (map line ns) <++> keyword "where" `vappend` indent 2 (vsep (map pretty decls))
-           prettyPrec _ (DMutual decls) = keyword "mutual" `vappend` indent 2 (vsep (map pretty decls))
-           prettyPrec _ (DParams params decls) = keyword "parameters" <++> parens (hsep (map paramDoc params)) <++> keyword "where" `vappend` indent 2 (vsep (map pretty decls))
-           prettyPrec _ (DUsing usings decls) = keyword "using" <++> parens (hsep (map usingDoc usings)) <++> keyword "where" `vappend` indent 2 (vsep (map pretty decls))
+           prettyPrec _ (DNamespace ns decls) =
+             keyword "namespace" <++> hsep (map line ns) <++> keyword "where" `vappend` indent 2 (vsep (map pretty decls))
+           prettyPrec _ (DMutual decls) =
+             keyword "mutual" `vappend` indent 2 (vsep (map pretty decls))
+           prettyPrec _ (DParams params decls) =
+             keyword "parameters" <++> parens (hsep (map paramDoc params)) <++> keyword "where" `vappend` indent 2 (vsep (map pretty decls))
+           prettyPrec _ (DUsing usings decls) =
+             keyword "using" <++> parens (hsep (map usingDoc usings)) <++> keyword "where" `vappend` indent 2 (vsep (map pretty decls))
            prettyPrec _ (DDirective s) = keyword "%" <+> line s
            prettyPrec _ (DBuiltin bt n) = keyword "%builtin" <++> line bt <++> pretty n
-           prettyPrec _ (DTransform name lhs rhs) = keyword "%transform" <++> line name <++> pretty lhs <++> keyword "=" <++> pretty rhs
+           prettyPrec _ (DTransform name lhs rhs) =
+             keyword "%transform" <++> line name <++> pretty lhs <++> keyword "=" <++> pretty rhs
            prettyPrec _ (DRunElab tm) = keyword "%runElab" <++> pretty tm
            prettyPrec _ (DComment c) = pretty c
            prettyPrec _ (DBlank n) = vsep (replicate n (line ""))
   export implementation Pretty (AST.Clause AST.Name) where
-           prettyPrec _ (MkClause lhs rhs ws) = let body = pretty lhs <++> keyword "=" <++> pretty rhs
-                                                in case ws of
-                                                     [] => body
-                                                     _  => body `vappend` indent 2 (keyword "where" `vappend` indent 2 (vsep (map pretty ws)))
-           prettyPrec _ (MkCaseClause lhs rhs) = pretty lhs <++> keyword "=>" <++> pretty rhs
-           prettyPrec _ (MkWith lhs wps cs) = pretty lhs <++> keyword "with" <++> parens (hsep (map pretty wps)) `vappend` indent 2 (vsep (map pretty cs))
+           prettyPrec _ (MkClause lhs rhs ws) =
+             let body = hangSep 2 (pretty lhs <++> keyword "=") (pretty rhs)
+             in case ws of
+                  [] => body
+                  _ =>
+                    body `vappend` indent 2 (keyword "where" `vappend` indent 2 (vsep (map pretty ws)))
+           prettyPrec _ (MkCaseClause lhs rhs) =
+             hangSep' 2 (pretty lhs <++> keyword "=>") (pretty rhs)
+           prettyPrec _ (MkWith lhs wps cs) =
+             pretty lhs <++> keyword "with" <++> parens (hsep (map pretty wps)) `vappend` indent 2 (vsep (map pretty cs))
            prettyPrec _ (MkImposs lhs) = pretty lhs <++> keyword "impossible"
   export implementation Pretty (AST.DoStmt AST.Name) where
            prettyPrec _ (DoExp tm) = pretty tm
-           prettyPrec _ (DoBind n rig ty tm) = prettyRig rig <+> pretty n <++> tyDoc ty <++> keyword "<-" <++> pretty tm
+           prettyPrec _ (DoBind n rig ty tm) =
+             prettyRig rig <+> pretty n <++> tyDoc ty <++> keyword "<-" <++> pretty tm
              where
                tyDoc : Maybe (AST.Expr AST.Name) -> Doc opts
                tyDoc Nothing = Doc.empty
                tyDoc (Just t) = colon <++> pretty t
-           prettyPrec _ (DoBindPat pat ty val _) = pretty pat <++> tyDoc ty <++> keyword "<-" <++> pretty val
+           prettyPrec _ (DoBindPat pat ty val _) =
+             pretty pat <++> tyDoc ty <++> keyword "<-" <++> pretty val
              where
                tyDoc : Maybe (AST.Expr AST.Name) -> Doc opts
                tyDoc Nothing = Doc.empty
                tyDoc (Just t) = colon <++> pretty t
-           prettyPrec _ (DoLet n rig tm) = keyword "let" <++> prettyRig rig <+> pretty n <++> equals <++> pretty tm
-           prettyPrec _ (DoLetPat pat val _) = keyword "let" <++> pretty pat <++> equals <++> pretty val
+           prettyPrec _ (DoLet n rig tm) =
+             keyword "let" <++> prettyRig rig <+> pretty n <++> equals <++> pretty tm
+           prettyPrec _ (DoLetPat pat val _) =
+             keyword "let" <++> pretty pat <++> equals <++> pretty val
            prettyPrec _ (DoRewrite rule) = keyword "rewrite" <++> pretty rule
   export implementation Pretty (AST.StringPart AST.Name) where
            prettyPrec _ (StrLit s) = text s
            prettyPrec _ (StrInterp tm) = line "\\{" <+> pretty tm <+> line "}"
   export implementation Pretty (AST.FieldUpdate AST.Name) where
            prettyPrec _ (FSet path v) = hsep (map line path) <++> equals <++> pretty v
-           prettyPrec _ (FSetApp path v) = hsep (map line path) <++> keyword "$=" <++> pretty v
+           prettyPrec _ (FSetApp path v) =
+             hsep (map line path) <++> keyword "$=" <++> pretty v
   export implementation Pretty (AST.ConDecl AST.Name) where
            prettyPrec _ (MkConDecl n ty) = pretty n <++> colon <++> pretty ty
   export implementation Pretty (AST.FieldDecl AST.Name) where
            prettyPrec _ (MkFieldDecl n ty) = pretty n <++> colon <++> pretty ty
   export implementation Pretty (AST.DataDecl AST.Name) where
-           prettyPrec _ (MkDataDecl n params ty cons) = let paramsDoc = hsep (map (\(p , t) => parens (pretty p <++> colon <++> pretty t)) params)
-                                                        in let base = pretty n <++> colon <++> pretty ty <++> keyword "where"
-                                                           in let header = if null params
-                                                                             then keyword "data" <++> base
-                                                                             else keyword "data" <++> pretty n <++> paramsDoc <++> colon <++> pretty ty <++> keyword "where"
-                                                              in header `vappend` indent 2 (vsep (map pretty cons))
+           prettyPrec _ (MkDataDecl n params ty cons) =
+             let paramsDoc = hsep (map (\(p , t) => parens (pretty p <++> colon <++> pretty t)) params)
+             in let base = pretty n <++> colon <++> pretty ty <++> keyword "where"
+                in let header = if null params
+                                  then keyword "data" <++> base
+                                  else keyword "data" <++> pretty n <++> paramsDoc <++> colon <++> pretty ty <++> keyword "where"
+                   in header `vappend` indent 2 (vsep (map pretty cons))
   export implementation Pretty (AST.RecordDecl AST.Name) where
-           prettyPrec _ (MkRecordDecl n params conName fields) = let paramsDoc = hsep (map (\(p , ty) => parens (pretty p <++> colon <++> pretty ty)) params)
-                                                                 in let conDoc = case conName of
-                                                                                   Nothing => []
-                                                                                   Just c  => [keyword "constructor" <++> pretty c]
-                                                                    in let base = pretty n <++> keyword "where"
-                                                                       in let header = if null params
-                                                                                         then keyword "record" <++> base
-                                                                                         else keyword "record" <++> pretty n <++> paramsDoc <++> keyword "where"
-                                                                          in header `vappend` indent 2 (vsep (conDoc ++ map pretty fields))
+           prettyPrec _ (MkRecordDecl n params conName fields) =
+             let paramsDoc = hsep (map (\(p , ty) => parens (pretty p <++> colon <++> pretty ty)) params)
+             in let conDoc = case conName of
+                               Nothing => []
+                               Just c  => [keyword "constructor" <++> pretty c]
+                in let base = pretty n <++> keyword "where"
+                   in let header = if null params
+                                     then keyword "record" <++> base
+                                     else keyword "record" <++> pretty n <++> paramsDoc <++> keyword "where"
+                      in header `vappend` indent 2 (vsep (conDoc ++ map pretty fields))
   interfaceParamDoc : {opts : _} -> (AST.Name , AST.Expr AST.Name) -> Doc opts
   interfaceParamDoc (p , AST.EImplicit) = pretty p
   interfaceParamDoc (p , ty) = parens (pretty p <++> colon <++> pretty ty)
   export implementation Pretty (AST.InterfaceDecl AST.Name) where
-           prettyPrec _ (MkInterfaceDecl n params _ methods) = let paramsDoc = hsep (map interfaceParamDoc params)
-                                                               in let base = pretty n <++> keyword "where"
-                                                                  in let header = if null params
-                                                                                    then keyword "interface" <++> base
-                                                                                    else keyword "interface" <++> pretty n <++> paramsDoc <++> keyword "where"
-                                                                     in header `vappend` indent 2 (vsep (map pretty methods))
+           prettyPrec _ (MkInterfaceDecl n params _ methods) =
+             let paramsDoc = hsep (map interfaceParamDoc params)
+             in let base = pretty n <++> keyword "where"
+                in let header = if null params
+                                  then keyword "interface" <++> base
+                                  else keyword "interface" <++> pretty n <++> paramsDoc <++> keyword "where"
+                   in header `vappend` indent 2 (vsep (map pretty methods))
   export implementation Pretty (AST.ImplDecl AST.Name) where
-           prettyPrec _ (MkImplDecl name interfaceName params body) = implDeclDoc name interfaceName params body
+           prettyPrec _ (MkImplDecl name interfaceName params body) =
+             implDeclDoc name interfaceName params body
   export implementation Pretty AST.FixityDecl where
-           prettyPrec _ (MkFixityDecl fix prec names) = keyword (fixityStr fix) <++> line (show prec) <++> hsep (map (line . show) names)
+           prettyPrec _ (MkFixityDecl fix prec names) =
+             keyword (fixityStr fix) <++> line (show prec) <++> hsep (map (line . show) names)
   importDoc : {opts : _} -> Bool -> List String -> Maybe String -> Doc opts
-  importDoc reexport name Nothing = if reexport
-                                      then keyword "import" <++> keyword "public" <++> line (concat (intersperse "." name))
-                                      else keyword "import" <++> line (concat (intersperse "." name))
-  importDoc reexport name (Just a) = if reexport
-                                       then keyword "import" <++> keyword "public" <++> line (concat (intersperse "." name)) <++> keyword "as" <++> line a
-                                       else keyword "import" <++> line (concat (intersperse "." name)) <++> keyword "as" <++> line a
+  importDoc reexport name Nothing =
+    if reexport
+      then keyword "import" <++> keyword "public" <++> line (concat (intersperse "." name))
+      else keyword "import" <++> line (concat (intersperse "." name))
+  importDoc reexport name (Just a) =
+    if reexport
+      then keyword "import" <++> keyword "public" <++> line (concat (intersperse "." name)) <++> keyword "as" <++> line a
+      else keyword "import" <++> line (concat (intersperse "." name)) <++> keyword "as" <++> line a
   export implementation Pretty AST.ImportDecl where
-           prettyPrec _ (MkImportDecl reexport name alias _ _) = importDoc reexport name alias
+           prettyPrec _ (MkImportDecl reexport name alias _ _) =
+             importDoc reexport name alias
   export showCharLit : Char -> String
   showCharLit '\n' = "\\n"
   showCharLit '\t' = "\\t"
@@ -225,22 +270,31 @@ mutual
     prettyPrec _ (AST.CDouble d) = line (show d)
   export implementation Pretty (AST.OpStr AST.Name) where
            prettyPrec _ (AST.OpSymbols s) = D.operator_ s
-           prettyPrec _ (AST.Backticked n) = enclose (D.operator_ "`") (D.operator_ "`") (pretty n)
+           prettyPrec _ (AST.Backticked n) =
+             enclose (D.operator_ "`") (D.operator_ "`") (pretty n)
   export implementation Pretty C.Comment where
-           prettyPrec _ (C.MkComment C.LineComment content _ _) = text "-- " <+> text content
-           prettyPrec _ (C.MkComment C.BlockComment content _ _) = text "{- " <+> text content <+> text " -}"
-           prettyPrec _ (C.MkComment C.DocComment content _ _) = text "||| " <+> text content
+           prettyPrec _ (C.MkComment C.LineComment content _ _) =
+             text "-- " <+> text content
+           prettyPrec _ (C.MkComment C.BlockComment content _ _) =
+             text "{- " <+> text content <+> text " -}"
+           prettyPrec _ (C.MkComment C.DocComment content _ _) =
+             text "||| " <+> text content
   implDeclDoc : {opts : _} -> Maybe AST.Name -> AST.Name -> List (AST.Expr AST.Name) -> Maybe (List (AST.Decl AST.Name)) -> Doc opts
-  implDeclDoc Nothing interfaceName params Nothing = keyword "implementation" <++> pretty interfaceName <++> hsep (map pretty params)
-  implDeclDoc (Just n) interfaceName params Nothing = keyword "implementation" <++> pretty n <++> equals <++> pretty interfaceName <++> hsep (map pretty params)
-  implDeclDoc Nothing interfaceName params (Just ds) = let header = keyword "implementation" <++> pretty interfaceName <++> hsep (map pretty params)
-                                                       in header <++> keyword "where" `vappend` indent 2 (vsep (map pretty ds))
-  implDeclDoc (Just n) interfaceName params (Just ds) = let header = keyword "implementation" <++> pretty n <++> equals <++> pretty interfaceName <++> hsep (map pretty params)
-                                                        in header <++> keyword "where" `vappend` indent 2 (vsep (map pretty ds))
+  implDeclDoc Nothing interfaceName params Nothing =
+    keyword "implementation" <++> pretty interfaceName <++> hsep (map pretty params)
+  implDeclDoc (Just n) interfaceName params Nothing =
+    keyword "implementation" <++> pretty n <++> equals <++> pretty interfaceName <++> hsep (map pretty params)
+  implDeclDoc Nothing interfaceName params (Just ds) =
+    let header = keyword "implementation" <++> pretty interfaceName <++> hsep (map pretty params)
+    in header <++> keyword "where" `vappend` indent 2 (vsep (map pretty ds))
+  implDeclDoc (Just n) interfaceName params (Just ds) =
+    let header = keyword "implementation" <++> pretty n <++> equals <++> pretty interfaceName <++> hsep (map pretty params)
+    in header <++> keyword "where" `vappend` indent 2 (vsep (map pretty ds))
 
 ||| Print a full module: render all declarations with inter-declaration spacing.
 export printModule : CFG.Config -> List (AST.Decl AST.Name) -> String
 
-printModule cfg decls = let opts = D.toLayoutOpts cfg
-                        in let rendered = Doc.render opts (vsep (map pretty decls))
-                           in Align.applyAlignment cfg rendered
+printModule cfg decls =
+  let opts = D.toLayoutOpts cfg
+  in let rendered = Doc.render opts (vsep (map pretty decls))
+     in Align.applyAlignment cfg rendered

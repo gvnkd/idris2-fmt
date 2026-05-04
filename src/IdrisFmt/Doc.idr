@@ -12,7 +12,8 @@ toLayoutOpts (MkConfig _ ll _) = Opts ll
 ||| Render a document to string using the layout options derived from config.
 export renderDoc : (cfg : CFG.Config) -> Doc (toLayoutOpts cfg) -> String
 
-renderDoc cfg doc = Text.PrettyPrint.Bernardy.Core.Doc.render (toLayoutOpts cfg) doc
+renderDoc cfg doc =
+  Text.PrettyPrint.Bernardy.Core.Doc.render (toLayoutOpts cfg) doc
 
 ||| Format a keyword.
 export keyword : {opts : _} -> String -> Doc opts

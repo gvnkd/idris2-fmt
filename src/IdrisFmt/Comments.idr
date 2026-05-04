@@ -21,6 +21,7 @@ public export record Comment where
 ||| Convert a doc string (||| content) into a list of doc comments.
 export docToComments : String -> List Comment
 
-docToComments s = let lines_ = lines s
-                  in let nonEmpty = filter (\l => length l > 0) (map trim lines_)
-                     in map (\l                => MkComment DocComment l 0 0) nonEmpty
+docToComments s =
+  let lines_ = lines s
+  in let nonEmpty = filter (\l => length l > 0) (map trim lines_)
+     in map (\l => MkComment DocComment l 0 0) nonEmpty
