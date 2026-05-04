@@ -165,6 +165,8 @@ mutual
   Pretty (AST.Clause AST.Name) where
     prettyPrec _ (MkClause lhs rhs) =
       pretty lhs <++> keyword "=" <++> pretty rhs
+    prettyPrec _ (MkCaseClause lhs rhs) =
+      pretty lhs <++> keyword "=>" <++> pretty rhs
     prettyPrec _ (MkWith lhs wps cs) =
       pretty lhs <++> keyword "with" <++> parens (hsep (map pretty wps))
       `vappend` indent 2 (vsep (map pretty cs))
@@ -225,12 +227,15 @@ mutual
 
   export
   Pretty (AST.RecordDecl AST.Name) where
-    prettyPrec _ (MkRecordDecl n params _ fields) =
+    prettyPrec _ (MkRecordDecl n params conName fields) =
       let paramsDoc = hsep (map (\(p, ty) => parens (pretty p <++> colon <++> pretty ty)) params)
+          conDoc = case conName of
+                     Nothing => Doc.empty
+                     Just c  => keyword "constructor" <++> pretty c
           base = pretty n <++> keyword "where"
           header = if null params then keyword "record" <++> base
                    else keyword "record" <++> pretty n <++> paramsDoc <++> keyword "where"
-       in header `vappend` indent 2 (vsep (map pretty fields))
+       in header `vappend` indent 2 (vsep (conDoc :: map pretty fields))
 
   export
   Pretty (AST.InterfaceDecl AST.Name) where

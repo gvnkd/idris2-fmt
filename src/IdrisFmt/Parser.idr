@@ -55,6 +55,38 @@ translateOpStr (Backticked n) = AST.Backticked (translateName n)
 translateRig : Algebra.RigCount -> AST.RigCount
 translateRig c = elimSemi AST.Rig0 AST.Rig1 (const AST.RigW) c
 
+||| Translate compiler PClause to formatter AST Clause (for case alternatives, higher-order).
+translatePClauseAsCase_ : (IS.PTerm -> AST.Expr AST.Name) -> IS.PClause -> AST.Clause AST.Name
+translatePClauseAsCase_ trans (MkPatClause _ lhs rhs _) =
+  AST.MkCaseClause (trans lhs) (trans rhs)
+translatePClauseAsCase_ trans (MkWithClause _ lhs wps _ _) =
+  AST.MkCaseClause (trans lhs) (AST.EComment (MkComment LineComment "with clause" 0 0) (AST.EImplicit))
+translatePClauseAsCase_ trans (MkImpossible _ lhs) =
+  AST.MkImposs (trans lhs)
+
+||| Translate compiler PFieldUpdate to formatter Expr (higher-order to avoid mutual recursion).
+translatePFieldUpdate_ : (IS.PTerm -> AST.Expr AST.Name) -> IS.PFieldUpdate' CN.Name -> AST.Expr AST.Name
+translatePFieldUpdate_ trans (PSetField path v) =
+  AST.EComment (MkComment LineComment ("set " ++ show path) 0 0) (trans v)
+translatePFieldUpdate_ trans (PSetFieldApp path v) =
+  AST.EComment (MkComment LineComment ("setApp " ++ show path) 0 0) (trans v)
+
+||| Translate compiler PDo to formatter DoStmt (higher-order to avoid mutual recursion).
+translatePDo_ : (IS.PTerm -> AST.Expr AST.Name) -> IS.PDo' CN.Name -> AST.DoStmt AST.Name
+translatePDo_ trans (DoExp _ tm) = AST.DoExp (trans tm)
+translatePDo_ trans (DoBind _ _ n rig ty tm) =
+  AST.DoBind (translateName n) (translateRig rig) (map trans ty) (trans tm)
+translatePDo_ trans (DoBindPat _ pat ty val alts) =
+  AST.DoBindPat (trans pat) (map trans ty) (trans val) (map (translatePClauseAsCase_ trans) alts)
+translatePDo_ trans (DoLet _ _ n rig ty val) =
+  AST.DoLet (translateName n) (translateRig rig) (trans val)
+translatePDo_ trans (DoLetPat _ pat ty val alts) =
+  AST.DoLetPat (trans pat) (trans val) (map (translatePClauseAsCase_ trans) alts)
+translatePDo_ trans (DoLetLocal _ decls) =
+  AST.DoExp (AST.EComment (MkComment LineComment "local decls in do" 0 0) AST.EImplicit)
+translatePDo_ trans (DoRewrite _ rule) =
+  AST.DoRewrite (trans rule)
+
 mutual
   ||| Translate compiler PStr to formatter StringPart.
   translatePStr : IS.PStr -> AST.StringPart AST.Name
@@ -116,6 +148,15 @@ mutual
   translateConstant (PrT pt) = AST.ERef (AST.UN (translatePrimType pt))
   translateConstant _ = AST.EPrim (AST.CInt 0)
 
+  ||| Translate compiler PClause to formatter AST Clause (for case alternatives).
+  translatePClauseAsCase : IS.PClause -> AST.Clause AST.Name
+  translatePClauseAsCase (MkPatClause _ lhs rhs _) =
+    AST.MkCaseClause (translatePTerm lhs) (translatePTerm rhs)
+  translatePClauseAsCase (MkWithClause _ lhs wps _ _) =
+    AST.MkCaseClause (translatePTerm lhs) (AST.EComment (MkComment LineComment "with clause" 0 0) (AST.EImplicit))
+  translatePClauseAsCase (MkImpossible _ lhs) =
+    AST.MkImposs (translatePTerm lhs)
+
   ||| Translate compiler PTerm to formatter AST Expr.
   translatePTerm : IS.PTerm -> AST.Expr AST.Name
   translatePTerm (PRef _ n) = AST.ERef (translateName n)
@@ -152,7 +193,30 @@ mutual
     AST.EIf (translatePTerm c) (translatePTerm t) (translatePTerm f)
   translatePTerm (PIdiom _ ns x) =
     AST.EIdiom (map show ns) (translatePTerm x)
+  translatePTerm (PCase _ _ scrut alts) =
+    AST.ECase (translatePTerm scrut) (map (translatePClauseAsCase_ translatePTerm) alts)
+  translatePTerm (PDoBlock _ ns stmts) =
+    AST.EDo (map show ns) (map (translatePDo_ translatePTerm) stmts)
+  translatePTerm (PUpdate _ updates) =
+    AST.EList (map (translatePFieldUpdate_ translatePTerm) updates)
+  translatePTerm (PRewrite _ rule tm) =
+    AST.EComment (MkComment LineComment "rewrite" 0 0) (translatePTerm tm)
+  translatePTerm (PComprehension _ tm stmts) =
+    AST.EComment (MkComment LineComment "comprehension" 0 0) (translatePTerm tm)
+  translatePTerm (PRange _ start step end) =
+    AST.EComment (MkComment LineComment "range" 0 0) (translatePTerm start)
+  translatePTerm (PRangeStream _ start step) =
+    AST.EComment (MkComment LineComment "range stream" 0 0) (translatePTerm start)
   translatePTerm tm = AST.EHole ("unsupported_" ++ show tm)
+
+  ||| Translate compiler PClause to formatter AST Clause.
+  translatePClause : IS.PClause -> AST.Clause AST.Name
+  translatePClause (MkPatClause _ lhs rhs _) =
+    AST.MkClause (translatePTerm lhs) (translatePTerm rhs)
+  translatePClause (MkWithClause _ lhs wps _ _) =
+    AST.MkClause (translatePTerm lhs) (AST.EComment (MkComment LineComment "with clause" 0 0) (AST.EImplicit))
+  translatePClause (MkImpossible _ lhs) =
+    AST.MkImposs (translatePTerm lhs)
 
 ||| Extract function name from a clause LHS.
 getFnName : IS.PTerm -> Maybe AST.Name
@@ -162,15 +226,6 @@ getFnName (PNamedApp _ f _ _) = getFnName f
 getFnName (PAutoApp _ f _) = getFnName f
 getFnName (PBracketed _ t) = getFnName t
 getFnName _ = Nothing
-
-||| Translate compiler PClause to formatter AST Clause.
-translatePClause : IS.PClause -> AST.Clause AST.Name
-translatePClause (MkPatClause _ lhs rhs _) =
-  AST.MkClause (translatePTerm lhs) (translatePTerm rhs)
-translatePClause (MkWithClause _ lhs wps _ _) =
-  AST.MkClause (translatePTerm lhs) (AST.EComment (MkComment LineComment "with clause" 0 0) (AST.EImplicit))
-translatePClause (MkImpossible _ lhs) =
-  AST.MkImposs (translatePTerm lhs)
 
 ||| Translate compiler PTypeDecl to formatter ConDecl.
 translatePTypeDecl : IS.PTypeDecl -> AST.ConDecl AST.Name
@@ -229,7 +284,8 @@ translatePDecl pdecl =
         IS.PRecord doc vis treq (MkPRecord tyname params opts conName decls) =>
           let ps = concatMap (translateBasicMultiBinder . bind) params
               fields = concatMap translatePField decls
-           in AST.DRecord [] (MkRecordDecl (translateName tyname) ps Nothing fields)
+              con = map (translateName . val) conName
+           in AST.DRecord [] (MkRecordDecl (translateName tyname) ps con fields)
         IS.PRecord doc vis treq (MkPRecordLater tyname params) =>
           AST.DComment (MkComment LineComment "forward record declaration" 0 0)
         IS.PFail msg decls =>

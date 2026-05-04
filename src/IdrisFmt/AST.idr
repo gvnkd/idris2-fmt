@@ -121,9 +121,10 @@ mutual
   ||| Pattern-matching clause.
   public export
   data Clause : Type -> Type where
-    MkClause  : Expr nm -> Expr nm -> Clause nm
-    MkWith    : Expr nm -> List (Expr nm) -> List (Clause nm) -> Clause nm
-    MkImposs  : Expr nm -> Clause nm
+    MkClause     : Expr nm -> Expr nm -> Clause nm
+    MkCaseClause : Expr nm -> Expr nm -> Clause nm
+    MkWith       : Expr nm -> List (Expr nm) -> List (Clause nm) -> Clause nm
+    MkImposs     : Expr nm -> Clause nm
 
   ||| String interpolation part.
   public export
