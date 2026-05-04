@@ -1,3 +1,0 @@
-module Builtin
-
-%builtin Natural Nat

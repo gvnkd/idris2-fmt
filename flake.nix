@@ -69,12 +69,8 @@
           set -e
           echo "Building main library..."
           idris2 --build idris2-fmt.ipkg
-          echo "Building test runner..."
-          cd tests
-          idris2 --build tests.ipkg
           echo "Running tests..."
-          ./build/test/exec/runtests $(realpath ../build/exec/idris2-fmt)
-          cd ..
+          ./tests/runtests.sh ./build/exec/idris2-fmt
         '';
       in
       {

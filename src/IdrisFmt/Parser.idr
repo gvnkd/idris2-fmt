@@ -90,29 +90,29 @@ mutual
   translatePStr (StrLiteral _ s) = AST.StrLit s
   translatePStr (StrInterp _ tm) = AST.StrInterp (translatePTerm tm)
   ||| Extract named Pi parameters from a telescope term.
-  extractPiParams : IS.PTerm -> (List (AST.Name , AST.Expr AST.Name) , IS.PTerm)
+  extractPiParams : IS.PTerm -> (List (AST.Name, AST.Expr AST.Name), IS.PTerm)
   extractPiParams (PPi _ _ _ (Just n) arg ret) =
-    let (ps , ty) = extractPiParams ret
-    in ((translateName n , translatePTerm arg) :: ps , ty)
-  extractPiParams t = ([] , t)
+    let (ps, ty) = extractPiParams ret
+    in ((translateName n, translatePTerm arg) :: ps, ty)
+  extractPiParams t = ([], t)
   ||| Translate data type telescope to params and return type.
-  translateDataType : Maybe IS.PTerm -> (List (AST.Name , AST.Expr AST.Name) , AST.Expr AST.Name)
-  translateDataType Nothing = ([] , AST.EType)
-  translateDataType (Just t) = let (ps , t') = extractPiParams t
-                               in (ps , translatePTerm t')
+  translateDataType : Maybe IS.PTerm -> (List (AST.Name, AST.Expr AST.Name), AST.Expr AST.Name)
+  translateDataType Nothing = ([], AST.EType)
+  translateDataType (Just t) = let (ps, t') = extractPiParams t
+                               in (ps, translatePTerm t')
   ||| Convert List1 to List.
   list1ToList : List1 a -> List a
   list1ToList (x ::: xs) = x :: xs
   ||| Translate PlainBinder to list of (name, type) pairs.
-  translatePlainBinder : IS.PlainBinder' CN.Name -> List (AST.Name , Maybe (AST.Expr AST.Name))
+  translatePlainBinder : IS.PlainBinder' CN.Name -> List (AST.Name, Maybe (AST.Expr AST.Name))
   translatePlainBinder pb =
     let n : WithFC CN.Name = WithData.get "name" pb
     in let tm : IS.PTerm = val pb
-       in [(translateName (val n) , Just (translatePTerm tm))]
+       in [(translateName (val n), Just (translatePTerm tm))]
   ||| Translate BasicMultiBinder to list of (name, type) pairs.
-  translateBasicMultiBinder : IS.BasicMultiBinder' CN.Name -> List (AST.Name , AST.Expr AST.Name)
+  translateBasicMultiBinder : IS.BasicMultiBinder' CN.Name -> List (AST.Name, AST.Expr AST.Name)
   translateBasicMultiBinder (MkBasicMultiBinder rig names ty) =
-    map (\n => (translateName (val n) , translatePTerm ty)) (list1ToList names)
+    map (\n => (translateName (val n), translatePTerm ty)) (list1ToList names)
   ||| Translate PiInfo from compiler to formatter.
   translatePiInfo : Core.TT.Binder.PiInfo IS.PTerm -> AST.PiInfo (AST.Expr AST.Name)
   translatePiInfo Explicit = AST.Explicit
@@ -228,7 +228,7 @@ mutual
              in let ty = translatePTerm binder.bind.type
                 in let scope = translatePTerm x.val.scope
                    in AST.EPi (translateRig rig) info (Just name) ty scope
-  translatePTerm (Forall x) = let (names , scope) = x.val
+  translatePTerm (Forall x) = let (names, scope) = x.val
                               in let ns = map (translateName . val) (forget names)
                                  in let sc = translatePTerm scope
                                     in AST.EForall ns sc
@@ -316,8 +316,8 @@ translateVisibility Core.TT.Export = AST.Export
 translateVisibility Core.TT.Public = AST.Public
 
 ||| Pair a line number with a declaration.
-pair : Nat -> AST.Decl AST.Name -> (Nat , AST.Decl AST.Name)
-pair line decl = (line , decl)
+pair : Nat -> AST.Decl AST.Name -> (Nat, AST.Decl AST.Name)
+pair line decl = (line, decl)
 
 ||| Translate compiler PFnOpt to formatter FnOpt.
 translateFnOpt : IS.PFnOpt -> AST.FnOpt
@@ -343,7 +343,7 @@ mutual
   translatePClause (MkImpossible _ lhs) = AST.MkImposs (translatePTerm lhs)
   ||| Translate compiler PDecl to formatter AST Decl.
   ||| Returns the declaration paired with its source line number.
-  translatePDecl : IS.PDecl -> (Nat , AST.Decl AST.Name)
+  translatePDecl : IS.PDecl -> (Nat, AST.Decl AST.Name)
   translatePDecl pdecl =
     let line = fcLine pdecl.fc
     in let d = val pdecl
@@ -370,7 +370,7 @@ mutual
                                      AST.DComment (MkComment LineComment "could not extract function name" 0 0)
                                    Just n => AST.DDef [] n (map translatePClause clauses)
                         IS.PData doc vis treq (MkPData _ tyname tycon opts datacons) =>
-                          let (params , ty) = translateDataType tycon
+                          let (params, ty) = translateDataType tycon
                           in let docs = docToComments doc
                              in let visibility = translateVisibility (collapseDefault vis)
                                 in AST.DData docs visibility (MkDataDecl (translateName tyname) params ty (map translatePTypeDecl datacons))
@@ -380,10 +380,10 @@ mutual
                           let ps = case params of
                                      Left pbs => concatMap translatePlainBinder (forget pbs)
                                      Right pbs =>
-                                       map (\(n , t) => (n , Just t)) (concatMap (translateBasicMultiBinder . bind) (forget pbs))
+                                       map (\(n, t) => (n, Just t)) (concatMap (translateBasicMultiBinder . bind) (forget pbs))
                           in AST.DParams ps (map (snd . translatePDecl) decls)
                         IS.PUsing usings decls =>
-                          let us = map (\(mn , tm) => (map translateName mn , translatePTerm tm)) usings
+                          let us = map (\(mn, tm) => (map translateName mn, translatePTerm tm)) usings
                           in AST.DUsing us (map (snd . translatePDecl) decls)
                         IS.PInterface vis constraints name doc params det conName methods =>
                           let ps = concatMap translateBasicMultiBinder params
@@ -448,8 +448,8 @@ lines' s = go [] (unpack s)
     go acc (c :: rest) = go (c :: acc) rest
 
 ||| Extract substring from source by 0-based line/column bounds.
-extractText : String -> (Int , Int) -> (Int , Int) -> String
-extractText src (sl , sc) (el , ec) =
+extractText : String -> (Int, Int) -> (Int, Int) -> String
+extractText src (sl, sc) (el, ec) =
   let ls = lines' src
   in let startLn = cast sl
      in let startCol = cast sc
@@ -474,15 +474,15 @@ extractText src (sl , sc) (el , ec) =
             in f ++ "\n" ++ unlines m ++ l
 
 ||| Strip comment markers from extracted text.
-stripComment : String -> (C.CommentStyle , String)
+stripComment : String -> (C.CommentStyle, String)
 stripComment s =
   let t = S.trim s
   in if isPrefixOf "--" t
-       then (C.LineComment , S.trim (substr 2 (length t `minus` 2) t))
+       then (C.LineComment, S.trim (substr 2 (length t `minus` 2) t))
        else
          if isPrefixOf "{-" t && isSuffixOf "-}" t
-           then (C.BlockComment , S.trim (substr 2 (length t `minus` 4) t))
-           else (C.LineComment , t)
+           then (C.BlockComment, S.trim (substr 2 (length t `minus` 4) t))
+           else (C.LineComment, t)
 
 ||| Check if a comment is a doc comment (starts with |||).
 isDocComment : String -> Bool
@@ -493,39 +493,44 @@ isDocComment s = isPrefixOf "|||" (S.trim s)
 extractComments : String -> PRS.State -> List C.Comment
 extractComments src state =
   let decs = state.decorations
-  in let commentDecs = filter (\(_ , (d , _)) => d == Comment) decs
-     in mapMaybe (\((_ , (start , end)) , (_ , _)) => let text = extractText src start end
-                                                      in let (style , content) = stripComment text
-                                                         in if isDocComment text
-                                                              then Nothing
-                                                              else Just (C.MkComment style content (cast (fst start)) (cast (snd start)))) commentDecs
+  in let commentDecs = filter (\(_, (d, _)) => d == Comment) decs
+     in mapMaybe (\((_, (start, end)), (_, _)) => let text = extractText src start end
+                                                  in let (style, content) = stripComment text
+                                                     in if isDocComment text
+                                                          then Nothing
+                                                          else Just (C.MkComment style content (cast (fst start)) (cast (snd start)))) commentDecs
 
 ||| Pair a comment with its declaration wrapper and line number.
-commentPair : C.Comment -> (Nat , AST.Decl AST.Name)
-commentPair c = (c.line , AST.DComment c)
+commentPair : C.Comment -> (Nat, AST.Decl AST.Name)
+commentPair c = (c.line, AST.DComment c)
 
 ||| Merge declarations and comments by source line number.
-mergeByLine : List (Nat , AST.Decl AST.Name) -> List (Nat , AST.Decl AST.Name) -> List (Nat , AST.Decl AST.Name)
+mergeByLine : List (Nat, AST.Decl AST.Name) -> List (Nat, AST.Decl AST.Name) -> List (Nat, AST.Decl AST.Name)
 mergeByLine [] ys = ys
 mergeByLine xs [] = xs
-mergeByLine ((lx , x) :: xs) ((ly , y) :: ys) =
+mergeByLine ((lx, x) :: xs) ((ly, y) :: ys) =
   if lx <= ly
-    then (lx , x) :: mergeByLine xs ((ly , y) :: ys)
-    else (ly , y) :: mergeByLine ((lx , x) :: xs) ys
+    then (lx, x) :: mergeByLine xs ((ly, y) :: ys)
+    else (ly, y) :: mergeByLine ((lx, x) :: xs) ys
 
 ||| Check if a declaration pair is a type signature followed by its definition.
 isClaimDefPair : AST.Decl AST.Name -> AST.Decl AST.Name -> Bool
 isClaimDefPair (AST.DClaim _ _ n1 _ _) (AST.DDef _ n2 _) = n1 == n2
 isClaimDefPair _ _ = False
 
+||| Check if a declaration is a comment.
+isComment : AST.Decl AST.Name -> Bool
+isComment (AST.DComment _) = True
+isComment _ = False
+
 ||| Insert blank lines between declarations based on line gaps.
-insertBlanks : List (Nat , AST.Decl AST.Name) -> List (AST.Decl AST.Name)
+insertBlanks : List (Nat, AST.Decl AST.Name) -> List (AST.Decl AST.Name)
 insertBlanks [] = []
-insertBlanks [(_ , d)] = [d]
-insertBlanks ((l1 , d1) :: (l2 , d2) :: rest) =
-  if l2 > l1 + 1 && not (isClaimDefPair d1 d2)
-    then d1 :: AST.DBlank 1 :: insertBlanks ((l2 , d2) :: rest)
-    else d1 :: insertBlanks ((l2 , d2) :: rest)
+insertBlanks [(_, d)] = [d]
+insertBlanks ((l1, d1) :: (l2, d2) :: rest) =
+  if l2 > l1 + 1 && not (isClaimDefPair d1 d2) && not (isComment d1 || isComment d2)
+    then d1 :: AST.DBlank 1 :: insertBlanks ((l2, d2) :: rest)
+    else d1 :: insertBlanks ((l2, d2) :: rest)
 
 ||| Parse a full module from source text.
 ||| Uses Idris2's built-in parser.
@@ -535,10 +540,10 @@ parseModule src =
   in let result = PS.runParser origin Nothing src (IP.prog origin)
      in case result of
           Left err => Left (fromError err)
-          Right (_ , (state , mod)) =>
+          Right (_, (state, mod)) =>
             let modName = show (IS.Module.moduleNS mod)
-            in let header = (0 , AST.DModule modName [])
-               in let imps = map (\imp => (0 , AST.DImport (translateImport imp))) (IS.Module.imports mod)
+            in let header = (0, AST.DModule modName [])
+               in let imps = map (\imp => (0, AST.DImport (translateImport imp))) (IS.Module.imports mod)
                   in let decls = map translatePDecl (IS.Module.decls mod)
                      in let comments = map commentPair (extractComments src state)
                         in let merged = mergeByLine (header :: imps ++ decls) comments

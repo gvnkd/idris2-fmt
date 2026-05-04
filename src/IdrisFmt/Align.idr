@@ -45,13 +45,13 @@ alignLine token line targetCol =
                   Nothing => line
                   Just c =>
                     let n = c `minus` 1
-                    in let (before , after) = splitAt n line
+                    in let (before, after) = splitAt n line
                        in before ++ spaces pad ++ after
   where
-    splitAt : Nat -> String -> (String , String)
+    splitAt : Nat -> String -> (String, String)
     splitAt n s = let bs = take n (unpack s)
                   in let as = drop n (unpack s)
-                     in (pack bs , pack as)
+                     in (pack bs, pack as)
 
 ||| Align a single block of lines on the given token.
 alignBlock : String -> List String -> List String
@@ -71,7 +71,7 @@ groupBlocks minIndent token (l :: ls) =
               Nothing => groupBlocks minIndent token ls
               Just col =>
                 if col >= S indent
-                  then let (block , rest) = span (hasTokenAtIndent indent token) (l :: ls)
+                  then let (block, rest) = span (hasTokenAtIndent indent token) (l :: ls)
                        in block :: groupBlocks minIndent token rest
                   else groupBlocks minIndent token ls
        else groupBlocks minIndent token ls

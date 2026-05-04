@@ -1,8 +1,0 @@
-module DataTypes
-
-data Foo : Type where
-  MkFoo : Int -> Foo
-
-data Vect : Nat -> Type -> Type where
-  Nil  : Vect 0 a
-  (::) : a -> Vect n a -> Vect (S n) a

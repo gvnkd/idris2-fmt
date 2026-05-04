@@ -1,8 +1,0 @@
-module Directives
-
-%default total
-
-%unbound_implicits off
-
-foo : Int -> Int
-foo x = x

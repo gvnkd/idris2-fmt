@@ -85,8 +85,8 @@ mutual
                   DFixity : FixityDecl -> Decl nm
                   DNamespace : List String -> List (Decl nm) -> Decl nm
                   DMutual : List (Decl nm) -> Decl nm
-                  DParams : List (nm , Maybe (Expr nm)) -> List (Decl nm) -> Decl nm
-                  DUsing : List (Maybe nm , Expr nm) -> List (Decl nm) -> Decl nm
+                  DParams : List (nm, Maybe (Expr nm)) -> List (Decl nm) -> Decl nm
+                  DUsing : List (Maybe nm, Expr nm) -> List (Decl nm) -> Decl nm
                   DDirective : String -> Decl nm
                   DBuiltin : String -> nm -> Decl nm
                   DTransform : String -> Expr nm -> Expr nm -> Decl nm
@@ -159,7 +159,7 @@ mutual
   public export record DataDecl (nm : Type) where
                   constructor MkDataDecl
                   name : nm
-                  params : List (nm , Expr nm)
+                  params : List (nm, Expr nm)
                   ty : Expr nm
                   cons : List (ConDecl nm)
   ||| Constructor declaration.
@@ -171,7 +171,7 @@ mutual
   public export record RecordDecl (nm : Type) where
                   constructor MkRecordDecl
                   name : nm
-                  params : List (nm , Expr nm)
+                  params : List (nm, Expr nm)
                   conName : Maybe nm
                   fields : List (FieldDecl nm)
   ||| Record field declaration.
@@ -183,7 +183,7 @@ mutual
   public export record InterfaceDecl (nm : Type) where
                   constructor MkInterfaceDecl
                   name : nm
-                  params : List (nm , Expr nm)
+                  params : List (nm, Expr nm)
                   parents : List (Expr nm)
                   methods : List (Decl nm)
   ||| Implementation declaration.

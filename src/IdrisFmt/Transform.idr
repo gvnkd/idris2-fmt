@@ -17,12 +17,12 @@ importCmp : AST.Decl AST.Name -> AST.Decl AST.Name -> Ordering
 importCmp d1 d2 = compare (importName d1) (importName d2)
 
 ||| Collect a contiguous block of imports from the front of a list.
-collectImports : List (AST.Decl AST.Name) -> (List (AST.Decl AST.Name) , List (AST.Decl AST.Name))
-collectImports [] = ([] , [])
+collectImports : List (AST.Decl AST.Name) -> (List (AST.Decl AST.Name), List (AST.Decl AST.Name))
+collectImports [] = ([], [])
 collectImports (d@(AST.DImport _) :: rest) =
-  let (imports , rest') = collectImports rest
-  in (d :: imports , rest')
-collectImports rest = ([] , rest)
+  let (imports, rest') = collectImports rest
+  in (d :: imports, rest')
+collectImports rest = ([], rest)
 
 ||| Sort import declarations alphabetically.
 ||| Non-import declarations remain in their original positions.
@@ -30,7 +30,7 @@ sortImports : List (AST.Decl AST.Name) -> List (AST.Decl AST.Name)
 sortImports [] = []
 sortImports (d :: rest) =
   if isImport d
-    then let (imports , nonImports) = collectImports (d :: rest)
+    then let (imports, nonImports) = collectImports (d :: rest)
          in L.sortBy importCmp imports ++ sortImports (assert_smaller (d :: rest) nonImports)
     else d :: sortImports rest
 
