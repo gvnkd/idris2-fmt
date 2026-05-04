@@ -2,7 +2,6 @@ module DocComments
 
 ||| A simple function
 foo : Int -> Int
-
 foo x = x + 1
 
 ||| A data type

@@ -17,7 +17,6 @@ public export record Args where
 
 ||| Parse raw command-line arguments into structured Args.
 export parseArgs : List String -> Maybe Args
-
 parseArgs [] = Nothing
 parseArgs (_ :: args) = go args CFG.defaultConfig False False False []
   where
@@ -44,6 +43,5 @@ parseArgs (_ :: args) = go args CFG.defaultConfig False False False []
 
 ||| Usage string displayed on --help or invalid input.
 export showUsage : String
-
 showUsage =
   "idris2-fmt [options] <files...>\n\n" ++ "Options:\n" ++ "  --check       Check formatting without writing\n" ++ "  --inplace     Edit files in place\n" ++ "  --stdin       Read from stdin\n" ++ "  --indent N    Indentation width (default: 2)\n" ++ "  --width N     Line length (default: 80)\n" ++ "  --help        Show this help\n"

@@ -18,7 +18,6 @@ importCmp d1 d2 = compare (importName d1) (importName d2)
 
 ||| Collect a contiguous block of imports from the front of a list.
 collectImports : List (AST.Decl AST.Name) -> (List (AST.Decl AST.Name) , List (AST.Decl AST.Name))
-
 collectImports [] = ([] , [])
 collectImports (d@(AST.DImport _) :: rest) =
   let (imports , rest') = collectImports rest
@@ -28,7 +27,6 @@ collectImports rest = ([] , rest)
 ||| Sort import declarations alphabetically.
 ||| Non-import declarations remain in their original positions.
 sortImports : List (AST.Decl AST.Name) -> List (AST.Decl AST.Name)
-
 sortImports [] = []
 sortImports (d :: rest) =
   if isImport d
@@ -38,7 +36,6 @@ sortImports (d :: rest) =
 
 ||| Merge consecutive blank-line declarations into a single blank.
 mergeBlankLines : List (AST.Decl AST.Name) -> List (AST.Decl AST.Name)
-
 mergeBlankLines [] = []
 mergeBlankLines (AST.DBlank _ :: rest) =
   case mergeBlankLines rest of
@@ -50,5 +47,4 @@ mergeBlankLines (d :: rest) = d :: mergeBlankLines rest
 ||| This is the fusion point: multiple passes composed into
 ||| a single function pipeline.
 export transformModule : CFG.Config -> List (AST.Decl AST.Name) -> List (AST.Decl AST.Name)
-
 transformModule cfg = sortImports . mergeBlankLines

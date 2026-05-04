@@ -45,6 +45,7 @@ mutual
   branchDoc : {opts : _} -> Doc opts -> AST.Expr AST.Name -> Doc opts
   branchDoc kw (EDo _ stmts) =
     hangSep' 2 (kw <++> keyword "do") (vsep (map pretty stmts))
+  branchDoc kw (EIf c t f) = kw `vappend` indent 2 (pretty (EIf c t f))
   branchDoc kw expr = kw <++> pretty expr
   export implementation Pretty AST.Name where
            prettyPrec _ (AST.UN s) = D.ident s
@@ -198,17 +199,17 @@ mutual
   export implementation Pretty (AST.DoStmt AST.Name) where
            prettyPrec _ (DoExp tm) = pretty tm
            prettyPrec _ (DoBind n rig ty tm) =
-             prettyRig rig <+> pretty n <++> tyDoc ty <++> keyword "<-" <++> pretty tm
+             prettyRig rig <+> pretty n <+> tyDoc ty <++> keyword "<-" <++> pretty tm
              where
                tyDoc : Maybe (AST.Expr AST.Name) -> Doc opts
                tyDoc Nothing = Doc.empty
-               tyDoc (Just t) = colon <++> pretty t
+               tyDoc (Just t) = space <+> colon <++> pretty t
            prettyPrec _ (DoBindPat pat ty val _) =
-             pretty pat <++> tyDoc ty <++> keyword "<-" <++> pretty val
+             pretty pat <+> tyDoc ty <++> keyword "<-" <++> pretty val
              where
                tyDoc : Maybe (AST.Expr AST.Name) -> Doc opts
                tyDoc Nothing = Doc.empty
-               tyDoc (Just t) = colon <++> pretty t
+               tyDoc (Just t) = space <+> colon <++> pretty t
            prettyPrec _ (DoLet n rig tm) =
              keyword "let" <++> prettyRig rig <+> pretty n <++> equals <++> pretty tm
            prettyPrec _ (DoLetPat pat val _) =
@@ -309,7 +310,6 @@ mutual
 
 ||| Print a full module: render all declarations with inter-declaration spacing.
 export printModule : CFG.Config -> List (AST.Decl AST.Name) -> String
-
 printModule cfg decls =
   let opts = D.toLayoutOpts cfg
   in let rendered = Doc.render opts (vsep (map pretty decls))

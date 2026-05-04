@@ -7,7 +7,6 @@ import IdrisFmt.Config as CFG
 
 ||| Find the 1-based column of the first occurrence of a substring in a string.
 findCol : String -> String -> Maybe Nat
-
 findCol needle haystack = go 1 (unpack haystack)
   where
     go : Nat -> List Char -> Maybe Nat
@@ -17,19 +16,16 @@ findCol needle haystack = go 1 (unpack haystack)
 
 ||| Build a string of N spaces.
 spaces : Nat -> String
-
 spaces Z = ""
 spaces (S n) = " " ++ spaces n
 
 ||| Maximum of a list of Nats.
 maximumNat : List Nat -> Maybe Nat
-
 maximumNat [] = Nothing
 maximumNat (x :: xs) = Just (foldl max x xs)
 
 ||| Check if a line has a token at the given indentation level (spaces only).
 hasTokenAtIndent : Nat -> String -> String -> Bool
-
 hasTokenAtIndent indent token line =
   let leading = length (takeWhile (== ' ') (unpack line))
   in leading == indent && case findCol token line of
@@ -38,7 +34,6 @@ hasTokenAtIndent indent token line =
 
 ||| Pad spaces after the first word to push token to target column.
 alignLine : String -> String -> Nat -> String
-
 alignLine token line targetCol =
   case findCol token line of
     Nothing => line
@@ -60,7 +55,6 @@ alignLine token line targetCol =
 
 ||| Align a single block of lines on the given token.
 alignBlock : String -> List String -> List String
-
 alignBlock token lines =
   let cols = mapMaybe (findCol token) lines
   in case maximumNat cols of
@@ -69,7 +63,6 @@ alignBlock token lines =
 
 ||| Group consecutive lines that contain the token at the same indentation.
 groupBlocks : Nat -> String -> List String -> List (List String)
-
 groupBlocks _ _ [] = []
 groupBlocks minIndent token (l :: ls) =
   let indent = length (takeWhile (== ' ') (unpack l))
@@ -85,13 +78,11 @@ groupBlocks minIndent token (l :: ls) =
 
 ||| Get the first element of a non-empty list.
 first : List String -> String
-
 first [] = ""
 first (x :: _) = x
 
 ||| Apply alignment for one token type.
 alignToken : Nat -> String -> String -> String
-
 alignToken minIndent token src =
   let lines_ = lines src
   in let blocks = groupBlocks minIndent token lines_
@@ -110,7 +101,6 @@ alignToken minIndent token src =
 
 ||| Post-process rendered output to apply alignment rules.
 export applyAlignment : CFG.Config -> String -> String
-
 applyAlignment cfg src =
   let rules = cfg.alignRules
   in let step1 = if rules.alignCaseArrows

@@ -32,7 +32,6 @@ export implementation Show ParseError where
 
 ||| Translate Idris2 Name to formatter Name.
 translateName : CN.Name -> AST.Name
-
 translateName (UN (Basic s)) = AST.UN s
 translateName (UN (Field s)) = AST.UN s
 translateName (UN Underscore) = AST.UN "_"
@@ -48,18 +47,15 @@ translateName (DN s n) = AST.UN s
 
 ||| Translate Idris2 OpStr to formatter OpStr.
 translateOpStr : IS.OpStr -> AST.OpStr AST.Name
-
 translateOpStr (OpSymbols n) = AST.OpSymbols (show n)
 translateOpStr (Backticked n) = AST.Backticked (translateName n)
 
 ||| Translate Idris2 RigCount to formatter RigCount.
 translateRig : Algebra.RigCount -> AST.RigCount
-
 translateRig c = elimSemi AST.Rig0 AST.Rig1 (const AST.RigW) c
 
 ||| Translate compiler PClause to formatter AST Clause (for case alternatives, higher-order).
 translatePClauseAsCase_ : (IS.PTerm -> AST.Expr AST.Name) -> IS.PClause -> AST.Clause AST.Name
-
 translatePClauseAsCase_ trans (MkPatClause _ lhs rhs _) =
   AST.MkCaseClause (trans lhs) (trans rhs)
 translatePClauseAsCase_ trans (MkWithClause _ lhs wps _ _) =
@@ -68,7 +64,6 @@ translatePClauseAsCase_ trans (MkImpossible _ lhs) = AST.MkImposs (trans lhs)
 
 ||| Translate compiler PFieldUpdate to formatter Expr (higher-order to avoid mutual recursion).
 translatePFieldUpdate_ : (IS.PTerm -> AST.Expr AST.Name) -> IS.PFieldUpdate' CN.Name -> AST.Expr AST.Name
-
 translatePFieldUpdate_ trans (PSetField path v) =
   AST.EComment (MkComment LineComment ("set " ++ show path) 0 0) (trans v)
 translatePFieldUpdate_ trans (PSetFieldApp path v) =
@@ -76,7 +71,6 @@ translatePFieldUpdate_ trans (PSetFieldApp path v) =
 
 ||| Translate compiler PDo to formatter DoStmt (higher-order to avoid mutual recursion).
 translatePDo_ : (IS.PTerm -> AST.Expr AST.Name) -> IS.PDo' CN.Name -> AST.DoStmt AST.Name
-
 translatePDo_ trans (DoExp _ tm) = AST.DoExp (trans tm)
 translatePDo_ trans (DoBind _ _ n rig ty tm) =
   AST.DoBind (translateName n) (translateRig rig) (map trans ty) (trans tm)
@@ -246,7 +240,6 @@ mutual
 
 ||| Translate compiler Directive to formatter string.
 translateDirective : IS.Directive -> String
-
 translateDirective (Hide (HideName n)) = "hide " ++ show n
 translateDirective (Hide (HideFixity _ n)) = "hide " ++ show n
 translateDirective (Unhide n) = "unhide " ++ show n
@@ -285,7 +278,6 @@ translateDirective (ForeignImpl n tms) = "foreign " ++ show n
 
 ||| Extract function name from a clause LHS.
 getFnName : IS.PTerm -> Maybe AST.Name
-
 getFnName (PRef _ n) = Just (translateName n)
 getFnName (PApp _ f _) = getFnName f
 getFnName (PNamedApp _ f _ _) = getFnName f
@@ -297,7 +289,6 @@ getFnName _ = Nothing
 
 ||| Translate compiler PTypeDecl to formatter ConDecl.
 translatePTypeDecl : IS.PTypeDecl -> AST.ConDecl AST.Name
-
 translatePTypeDecl pty =
   let td = val pty
   in let ns = map (val . snd) (forget td.names)
@@ -307,7 +298,6 @@ translatePTypeDecl pty =
 
 ||| Translate compiler PField to formatter FieldDecl.
 translatePField : IS.PField -> List (AST.FieldDecl AST.Name)
-
 translatePField pf =
   let ns = WithData.get "names" pf
   in let f = val pf
@@ -315,26 +305,22 @@ translatePField pf =
 
 ||| Extract start line from an FC.
 fcLine : CFC.FC -> Nat
-
 fcLine (CFC.MkFC _ start _) = cast (fst start)
 fcLine (CFC.MkVirtualFC _ start _) = cast (fst start)
 fcLine CFC.EmptyFC = 0
 
 ||| Translate compiler Visibility to formatter Visibility.
 translateVisibility : Core.TT.Visibility -> AST.Visibility
-
 translateVisibility Core.TT.Private = AST.Private
 translateVisibility Core.TT.Export = AST.Export
 translateVisibility Core.TT.Public = AST.Public
 
 ||| Pair a line number with a declaration.
 pair : Nat -> AST.Decl AST.Name -> (Nat , AST.Decl AST.Name)
-
 pair line decl = (line , decl)
 
 ||| Translate compiler PFnOpt to formatter FnOpt.
 translateFnOpt : IS.PFnOpt -> AST.FnOpt
-
 translateFnOpt (IFnOpt TT.Inline) = AST.Inline
 translateFnOpt (IFnOpt TT.TCInline) = AST.TCInline
 translateFnOpt (IFnOpt TT.NoInline) = AST.NoInline
@@ -342,7 +328,6 @@ translateFnOpt _ = AST.NoInline
 
 ||| Translate compiler Fixity to formatter Fixity.
 translateFixity : Core.TT.Fixity -> AST.Fixity
-
 translateFixity InfixL = AST.InfixL
 translateFixity InfixR = AST.InfixR
 translateFixity Infix = AST.Infix
@@ -434,12 +419,10 @@ mutual
 
 ||| Convert compiler Error to formatter ParseError.
 fromError : CC.Error -> ParseError
-
 fromError err = ParseErr (show err)
 
 ||| Split a string on a character.
 splitString : Char -> String -> List String
-
 splitString c s = go [] (unpack s)
   where
     go : List Char -> List Char -> List String
@@ -449,7 +432,6 @@ splitString c s = go [] (unpack s)
 
 ||| Translate compiler Import to formatter ImportDecl.
 translateImport : IS.Import -> AST.ImportDecl
-
 translateImport imp = let path = splitString '/' (toPath imp.path)
                       in let alias = if show imp.nameAs == show imp.path
                                        then Nothing
@@ -458,7 +440,6 @@ translateImport imp = let path = splitString '/' (toPath imp.path)
 
 ||| Split source into lines.
 lines' : String -> List String
-
 lines' s = go [] (unpack s)
   where
     go : List Char -> List Char -> List String
@@ -468,7 +449,6 @@ lines' s = go [] (unpack s)
 
 ||| Extract substring from source by 0-based line/column bounds.
 extractText : String -> (Int , Int) -> (Int , Int) -> String
-
 extractText src (sl , sc) (el , ec) =
   let ls = lines' src
   in let startLn = cast sl
@@ -495,24 +475,22 @@ extractText src (sl , sc) (el , ec) =
 
 ||| Strip comment markers from extracted text.
 stripComment : String -> (C.CommentStyle , String)
-
 stripComment s =
   let t = S.trim s
   in if isPrefixOf "--" t
        then (C.LineComment , S.trim (substr 2 (length t `minus` 2) t))
-       else if isPrefixOf "{-" t && isSuffixOf "-}" t
-              then (C.BlockComment , S.trim (substr 2 (length t `minus` 4) t))
-              else (C.LineComment , t)
+       else
+         if isPrefixOf "{-" t && isSuffixOf "-}" t
+           then (C.BlockComment , S.trim (substr 2 (length t `minus` 4) t))
+           else (C.LineComment , t)
 
 ||| Check if a comment is a doc comment (starts with |||).
 isDocComment : String -> Bool
-
 isDocComment s = isPrefixOf "|||" (S.trim s)
 
 ||| Extract comments from parser state.
 ||| Filters out doc comments (|||) since those are handled via declaration doc fields.
 extractComments : String -> PRS.State -> List C.Comment
-
 extractComments src state =
   let decs = state.decorations
   in let commentDecs = filter (\(_ , (d , _)) => d == Comment) decs
@@ -524,12 +502,10 @@ extractComments src state =
 
 ||| Pair a comment with its declaration wrapper and line number.
 commentPair : C.Comment -> (Nat , AST.Decl AST.Name)
-
 commentPair c = (c.line , AST.DComment c)
 
 ||| Merge declarations and comments by source line number.
 mergeByLine : List (Nat , AST.Decl AST.Name) -> List (Nat , AST.Decl AST.Name) -> List (Nat , AST.Decl AST.Name)
-
 mergeByLine [] ys = ys
 mergeByLine xs [] = xs
 mergeByLine ((lx , x) :: xs) ((ly , y) :: ys) =
@@ -537,20 +513,23 @@ mergeByLine ((lx , x) :: xs) ((ly , y) :: ys) =
     then (lx , x) :: mergeByLine xs ((ly , y) :: ys)
     else (ly , y) :: mergeByLine ((lx , x) :: xs) ys
 
+||| Check if a declaration pair is a type signature followed by its definition.
+isClaimDefPair : AST.Decl AST.Name -> AST.Decl AST.Name -> Bool
+isClaimDefPair (AST.DClaim _ _ n1 _ _) (AST.DDef _ n2 _) = n1 == n2
+isClaimDefPair _ _ = False
+
 ||| Insert blank lines between declarations based on line gaps.
 insertBlanks : List (Nat , AST.Decl AST.Name) -> List (AST.Decl AST.Name)
-
 insertBlanks [] = []
 insertBlanks [(_ , d)] = [d]
 insertBlanks ((l1 , d1) :: (l2 , d2) :: rest) =
-  if l2 > l1 + 1
+  if l2 > l1 + 1 && not (isClaimDefPair d1 d2)
     then d1 :: AST.DBlank 1 :: insertBlanks ((l2 , d2) :: rest)
     else d1 :: insertBlanks ((l2 , d2) :: rest)
 
 ||| Parse a full module from source text.
 ||| Uses Idris2's built-in parser.
 export parseModule : String -> Either ParseError (List (AST.Decl AST.Name))
-
 parseModule src =
   let origin = CFC.Virtual CFC.Interactive
   in let result = PS.runParser origin Nothing src (IP.prog origin)
@@ -568,5 +547,4 @@ parseModule src =
 
 ||| Parse a single expression from source text.
 export parseExpr : String -> Either ParseError (AST.Expr AST.Name)
-
 parseExpr src = ?rhs_parseExpr
