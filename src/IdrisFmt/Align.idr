@@ -41,17 +41,14 @@ alignLine token line targetCol =
       if col >= targetCol
         then line
         else let pad = targetCol `minus` col
-             in case findCol token line of
-                  Nothing => line
-                  Just c =>
-                    let n = c `minus` 1
-                    in let (before, after) = splitAt n line
-                       in before ++ spaces pad ++ after
+                 n   = col `minus` 1
+                 (before, after) = strSplitAt n line
+             in before ++ spaces pad ++ after
   where
-    splitAt : Nat -> String -> (String, String)
-    splitAt n s = let bs = take n (unpack s)
-                  in let as = drop n (unpack s)
-                     in (pack bs, pack as)
+    strSplitAt : Nat -> String -> (String, String)
+    strSplitAt n s = let bs = take n (unpack s)
+                     in let as = drop n (unpack s)
+                        in (pack bs, pack as)
 
 ||| Align a single block of lines on the given token.
 alignBlock : String -> List String -> List String
@@ -103,16 +100,11 @@ alignToken minIndent token src =
 export applyAlignment : CFG.Config -> String -> String
 applyAlignment cfg src =
   let rules = cfg.alignRules
-  in let step1 = if rules.alignCaseArrows
-                   then alignToken cfg.indentWidth " => " src
-                   else src
-     in let step2 = if rules.alignTypeSigs
-                      then alignToken cfg.indentWidth " : " step1
-                      else step1
-        in let step3 = if rules.alignFunctionDefs
-                         then alignToken cfg.indentWidth " = " step2
-                         else step2
-           in let step4 = if rules.alignRecordFields
-                            then alignToken cfg.indentWidth " : " step3
-                            else step3
-              in step4
+  in applySteps rules.alignCaseArrows " => "
+  $ applySteps rules.alignTypeSigs " : "
+  $ applySteps rules.alignFunctionDefs " = "
+  $ applySteps rules.alignRecordFields " : " src
+  where
+    applySteps : Bool -> String -> String -> String
+    applySteps True  tok s = alignToken cfg.indentWidth tok s
+    applySteps False _   s = s
