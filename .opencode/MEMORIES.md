@@ -272,6 +272,45 @@ the type), not `PType`.
 translatePTerm (PInfer _) = AST.EImplicit
 ```
 
+### 24. Idris2 `mutual` block forward reference limitations
+
+**Symptom:** Functions inside a `mutual` block cannot reference top-level
+functions defined later in the file. Error: "Undefined name X".
+
+**Cause:** Idris2 resolves forward references for top-level functions, but
+functions inside a `mutual` block can only see:
+- Other functions inside the same `mutual` block (regardless of order)
+- Top-level functions defined BEFORE the `mutual` block
+
+They CANNOT see top-level functions defined AFTER the `mutual` block.
+
+**Fix:** Define helper functions BEFORE the `mutual` block, or pass the
+recursively-used function as an explicit argument (higher-order function):
+```idris
+-- BEFORE mutual block:
+translatePDo_ : (IS.PTerm -> AST.Expr AST.Name) -> IS.PDo' CN.Name -> AST.DoStmt AST.Name
+translatePDo_ trans (DoExp _ tm) = AST.DoExp (trans tm)
+
+-- Inside mutual block:
+translatePTerm (PDoBlock _ ns stmts) =
+  AST.EDo (map show ns) (map (translatePDo_ translatePTerm) stmts)
+```
+
+### 25. `mutual` block: function definitions inside pattern matching
+
+**Symptom:** "No type declaration for X" when defining a function inside a
+`mutual` block that appears between clauses of another function.
+
+**Cause:** Idris2's parser continues pattern matching for the current function
+until it encounters a clause that doesn't match. A new function definition
+(with its own type signature) in the middle is treated as a pattern match
+attempt and fails.
+
+**Fix:** Never define a new function between clauses of a pattern-matched
+function within a `mutual` block. Place all helper functions either:
+- Before the pattern-matched function starts, or
+- After it ends (with a blank line separating them)
+
 ## Architecture
 
 - **Pipeline:** `parseModule` >=> `transformModule` >=> `printModule`
@@ -285,7 +324,7 @@ translatePTerm (PInfer _) = AST.EImplicit
 - **Parser bridge:** Calls `Parser.Source.runParser` with `Idris.Parser.prog`.
   Translates compiler AST (`PTerm`, `PDecl`, `PClause`) to formatter AST.
 
-## Current Status (Phase 3 Complete)
+## Current Status (Phase 4a Complete)
 
 **Implemented translations:**
 - `PClaim` → `DClaim` (type signatures)
@@ -293,29 +332,27 @@ translatePTerm (PInfer _) = AST.EImplicit
 - `PFixity` → `DFixity` (fixity declarations)
 - `PNamespace` → `DNamespace` (namespace blocks)
 - `PData` → `DData` (data types with param extraction)
-- `PRecord` → `DRecord` (records with field extraction)
+- `PRecord` → `DRecord` (records with field extraction + constructor name)
 - `PInterface` → `DInterface` (interfaces with param/constraint translation)
 - `PImplementation` → `DImpl` (implementations)
 - `PRef`, `PPi`, `PLam`, `PApp`, `PPrimVal` (with `PrimType`), `PType`,
   `PImplicit`, `PInfer`, `PHole`, `PDelayed`, `PDelay`, `PForce`,
   `PBracketed`, `PDotted`, `PAs`, `POp`, `PString`, `PList`, `PPair`,
-  `PUnit`, `PIfThenElse`, `PIdiom` → `Expr`
-- `MkPatClause`, `MkImpossible` → `Clause`
+  `PUnit`, `PIfThenElse`, `PIdiom`, `PCase`, `PDoBlock`, `PUpdate` → `Expr`
+- `MkPatClause` → `MkClause` (function defs, uses `=`)
+- `MkPatClause` → `MkCaseClause` (case alts, uses `=>`)
+- `MkImpossible` → `MkImposs`
 - Module headers (`DModule`) and imports (`DImport`) from parser `Module`
 
 **Still placeholder comments:**
 - `PParameters`, `PUsing`, `PMutual`
 - `PTransform`, `PRunElabDecl`, `PDirective`, `PBuiltin`
+- `PRewrite`, `PComprehension`, `PRange`, `PRangeStream`
 
-## Next Steps (Phase 4)
+## Next Steps (Phase 4b / 5)
 
 1. **Attach comments:** Extract comment annotations from parser `State.decorations`
    and attach to AST nodes.
-2. **Fix `=>` vs `=` in clauses:** Distinguish function clauses (`=`) from
-   case/lambda clauses (`=>`). Currently all `MkClause` prints `=`.
-3. **Record constructors:** Extract `conName` from `MkPRecord`.
-4. **Round-trip tests:** Parse -> Format -> Parse should yield equivalent AST.
-5. **Handle more PTerm constructs:** `PDoBlock`, `PCase`, `PComprehension`,
-   `PRewrite`, `PRange`, etc.
-6. **Restore totality:** Fill remaining holes and switch modules back to
+2. **Round-trip tests:** Parse -> Format -> Parse should yield equivalent AST.
+3. **Restore totality:** Fill remaining holes and switch modules back to
    `%default total`.
