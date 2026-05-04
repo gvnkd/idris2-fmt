@@ -65,7 +65,7 @@
           echo "Build complete."
         '';
 
-        testScript = pkgs.writeShellScriptBin "test" ''
+        testScript = pkgs.writeShellScriptBin "run-tests" ''
           set -e
           echo "Building main library..."
           idris2 --build idris2-fmt.ipkg

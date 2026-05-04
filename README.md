@@ -176,7 +176,7 @@ The test suite uses the `test` package (Idris 2's built-in test framework) with 
 
 ```bash
 # Run all tests
-nix develop -c test
+nix develop -c run-tests
 
 # Or manually:
 cd tests
