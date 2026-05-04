@@ -135,15 +135,21 @@ mutual
     prettyPrec _ (EDotted x) = line "." <+> pretty x
     prettyPrec _ (EComment c x) = pretty c `vappend` pretty x
 
+  visibilityDoc : {opts : _} -> AST.Visibility -> Doc opts
+  visibilityDoc AST.Private = empty
+  visibilityDoc AST.Export = keyword "export" <++> empty
+  visibilityDoc AST.Public = keyword "public" <++> keyword "export" <++> empty
+
   export
   Pretty (AST.Decl AST.Name) where
     prettyPrec _ (DModule name _) = keyword "module" <++> line name
     prettyPrec _ (DImport imp) = pretty imp
-    prettyPrec _ (DClaim comments n ty fnOpts) =
+    prettyPrec _ (DClaim comments vis n ty fnOpts) =
       let fnOptsDoc = hsep (map fnOptDoc fnOpts)
+          visDoc = visibilityDoc vis
           base = case fnOpts of
-                   [] => pretty n <++> colon <++> pretty ty
-                   _  => fnOptsDoc <++> pretty n <++> colon <++> pretty ty
+                   [] => visDoc <+> pretty n <++> colon <++> pretty ty
+                   _  => visDoc <+> fnOptsDoc <++> pretty n <++> colon <++> pretty ty
        in case comments of
             [] => base
             _  => vsep (map pretty comments) `vappend` base
@@ -152,28 +158,30 @@ mutual
        in case comments of
             [] => body
             _  => vsep (map pretty comments) `vappend` body
-    prettyPrec _ (DData comments dd) =
-      let base = pretty dd
+    prettyPrec _ (DData comments vis dd) =
+      let base = visibilityDoc vis <+> pretty dd
        in case comments of
             [] => base
             _  => vsep (map pretty comments) `vappend` base
-    prettyPrec _ (DRecord comments rd) =
-      let base = pretty rd
+    prettyPrec _ (DRecord comments vis rd) =
+      let base = visibilityDoc vis <+> pretty rd
        in case comments of
             [] => base
             _  => vsep (map pretty comments) `vappend` base
-    prettyPrec _ (DInterface comments id) =
-      let base = pretty id
+    prettyPrec _ (DInterface comments vis id) =
+      let base = visibilityDoc vis <+> pretty id
        in case comments of
             [] => base
             _  => vsep (map pretty comments) `vappend` base
-    prettyPrec _ (DImpl _ impl) = pretty impl
+    prettyPrec _ (DImpl _ vis impl) =
+      let base = visibilityDoc vis <+> pretty impl
+       in base
     prettyPrec _ (DFixity fd) = pretty fd
     prettyPrec _ (DNamespace ns decls) =
       keyword "namespace" <++> hsep (map line ns) <++> keyword "where"
       `vappend` indent 2 (vsep (map pretty decls))
     prettyPrec _ (DMutual decls) =
-      keyword "mutual"
+      keyword "mutual" <++> keyword "where"
       `vappend` indent 2 (vsep (map pretty decls))
     prettyPrec _ (DParams params decls) =
       keyword "parameters" <++> parens (hsep (map paramDoc params))

@@ -2,6 +2,7 @@ module IdrisFmt.Parser
 
 import Data.List as L
 import Data.String as S
+import Libraries.Data.WithDefault
 
 import public Parser.Source as PS
 import public Parser.Rule.Source as PRS
@@ -328,6 +329,12 @@ fcLine (CFC.MkFC _ start _) = cast (fst start)
 fcLine (CFC.MkVirtualFC _ start _) = cast (fst start)
 fcLine CFC.EmptyFC = 0
 
+||| Translate compiler Visibility to formatter Visibility.
+translateVisibility : Core.TT.Visibility -> AST.Visibility
+translateVisibility Core.TT.Private = AST.Private
+translateVisibility Core.TT.Export = AST.Export
+translateVisibility Core.TT.Public = AST.Public
+
 ||| Pair a line number with a declaration.
 pair : Nat -> AST.Decl AST.Name -> (Nat, AST.Decl AST.Name)
 pair line decl = (line, decl)
@@ -343,9 +350,10 @@ translatePDecl pdecl =
            let tyDecl = val claim.type
                names = map (val . snd) (forget tyDecl.names)
                docs = docToComments tyDecl.doc
+               vis = translateVisibility claim.vis
             in case names of
                  [] => AST.DComment (MkComment LineComment "empty claim" 0 0)
-                 (n :: _) => AST.DClaim docs (translateName n) (translatePTerm tyDecl.type)
+                 (n :: _) => AST.DClaim docs vis (translateName n) (translatePTerm tyDecl.type)
                              (map translateFnOpt claim.opts)
          IS.PDef clauses =>
            case clauses of
@@ -361,7 +369,8 @@ translatePDecl pdecl =
          IS.PData doc vis treq (MkPData _ tyname tycon opts datacons) =>
            let (params, ty) = translateDataType tycon
                docs = docToComments doc
-            in AST.DData docs (MkDataDecl (translateName tyname) params ty (map translatePTypeDecl datacons))
+               visibility = translateVisibility (collapseDefault vis)
+            in AST.DData docs visibility (MkDataDecl (translateName tyname) params ty (map translatePTypeDecl datacons))
          IS.PData doc vis treq (MkPLater _ tyname tycon) =>
            AST.DComment (MkComment LineComment "forward data declaration" 0 0)
          IS.PParameters params decls =>
@@ -376,15 +385,18 @@ translatePDecl pdecl =
            let ps = concatMap translateBasicMultiBinder params
                parentTerms = map snd constraints
                docs = docToComments doc
-            in AST.DInterface docs (MkInterfaceDecl (translateName name) ps (map translatePTerm parentTerms) (map (snd . translatePDecl) methods))
+               visibility = translateVisibility (collapseDefault vis)
+            in AST.DInterface docs visibility (MkInterfaceDecl (translateName name) ps (map translatePTerm parentTerms) (map (snd . translatePDecl) methods))
          IS.PImplementation vis opts pass implicits constraints name params implName nusing body =>
-           AST.DImpl [] (MkImplDecl (map translateName implName) (translateName name) (map translatePTerm params) (map (map (snd . translatePDecl)) body))
+           let visibility = translateVisibility vis
+            in AST.DImpl [] visibility (MkImplDecl (map translateName implName) (translateName name) (map translatePTerm params) (map (map (snd . translatePDecl)) body))
          IS.PRecord doc vis treq (MkPRecord tyname params opts conName decls) =>
            let ps = concatMap (translateBasicMultiBinder . bind) params
                fields = concatMap translatePField decls
                con = map (translateName . val) conName
                docs = docToComments doc
-            in AST.DRecord docs (MkRecordDecl (translateName tyname) ps con fields)
+               visibility = translateVisibility (collapseDefault vis)
+            in AST.DRecord docs visibility (MkRecordDecl (translateName tyname) ps con fields)
          IS.PRecord doc vis treq (MkPRecordLater tyname params) =>
            AST.DComment (MkComment LineComment "forward record declaration" 0 0)
          IS.PFail msg decls =>

@@ -4,7 +4,7 @@ import Data.List as L
 import Data.SnocList as SL
 import Data.String as S
 
-import IdrisFmt.Comments as C
+import public IdrisFmt.Comments as C
 
 %default total
 
@@ -39,6 +39,10 @@ data PiInfo : Type -> Type where
 public export
 data Fixity = InfixL | InfixR | Infix | Prefix
 
+||| Visibility modifier.
+public export
+data Visibility = Private | Export | Public
+
 ||| Function options.
 public export
 data FnOpt = Inline | TCInline | NoInline
@@ -67,12 +71,12 @@ mutual
   data Decl : Type -> Type where
     DModule      : String -> List String -> Decl nm
     DImport      : ImportDecl -> Decl nm
-    DClaim       : List C.Comment -> nm -> Expr nm -> List FnOpt -> Decl nm
+    DClaim       : List C.Comment -> Visibility -> nm -> Expr nm -> List FnOpt -> Decl nm
     DDef         : List C.Comment -> nm -> List (Clause nm) -> Decl nm
-    DData        : List C.Comment -> DataDecl nm -> Decl nm
-    DRecord      : List C.Comment -> RecordDecl nm -> Decl nm
-    DInterface   : List C.Comment -> InterfaceDecl nm -> Decl nm
-    DImpl        : List C.Comment -> ImplDecl nm -> Decl nm
+    DData        : List C.Comment -> Visibility -> DataDecl nm -> Decl nm
+    DRecord      : List C.Comment -> Visibility -> RecordDecl nm -> Decl nm
+    DInterface   : List C.Comment -> Visibility -> InterfaceDecl nm -> Decl nm
+    DImpl        : List C.Comment -> Visibility -> ImplDecl nm -> Decl nm
     DFixity      : FixityDecl -> Decl nm
     DNamespace   : List String -> List (Decl nm) -> Decl nm
     DMutual      : List (Decl nm) -> Decl nm

@@ -1,5 +1,5 @@
 module Mutual
-mutual where
+mutual
   even : Nat -> Bool
   even Z = True
   even (S k) = odd k
