@@ -1,6 +1,5 @@
 module IdrisFmt.AST
 import Data.List as L
-import Data.SnocList as SL
 import Data.String as S
 import public IdrisFmt.Comments as C
 

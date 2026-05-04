@@ -1,6 +1,5 @@
 module IdrisFmt.Printer
 import Data.List as L
-import Data.Maybe as M
 import Data.String as S
 import IdrisFmt.AST as AST
 import IdrisFmt.Align as Align
@@ -8,8 +7,8 @@ import IdrisFmt.Comments as C
 import IdrisFmt.Config as CFG
 import IdrisFmt.Doc as D
 import Text.PrettyPrint.Bernardy as PP
-import Text.PrettyPrint.Bernardy.Combinators as PPC
-import Text.PrettyPrint.Bernardy.Interface as PPI
+import Text.PrettyPrint.Bernardy.Combinators
+import Text.PrettyPrint.Bernardy.Interface
 
 %default covering
 

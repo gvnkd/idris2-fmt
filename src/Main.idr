@@ -1,5 +1,4 @@
 module Main
-import Data.Either as E
 import Data.List as L
 import Data.String as S
 import IdrisFmt.AST as AST
@@ -13,7 +12,6 @@ import IdrisFmt.Transform as T
 import System
 import System.File.ReadWrite as SFRW
 import System.File.Virtual as SFV
-import Text.PrettyPrint.Bernardy as PP
 
 %default covering
 
