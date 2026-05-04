@@ -105,7 +105,7 @@ mutual
       `vappend` (keyword "in" <++> pretty scope)
     prettyPrec _ (EList xs) = list (map pretty xs)
     prettyPrec _ (ESnocList xs) = snocList (map pretty (xs <>> []))
-    prettyPrec _ (EPair x y) = tuple [pretty x, pretty y]
+    prettyPrec _ (EPair x y) = parens (pretty x <++> comma <++> pretty y)
     prettyPrec _ (EString parts) = dquotes (hcat (map pretty parts))
     prettyPrec _ (EDo _ stmts) =
       keyword "do" `vappend` indent 2 (vsep (map pretty stmts))
@@ -201,8 +201,11 @@ mutual
 
   export
   Pretty (AST.Clause AST.Name) where
-    prettyPrec _ (MkClause lhs rhs) =
-      pretty lhs <++> keyword "=" <++> pretty rhs
+    prettyPrec _ (MkClause lhs rhs ws) =
+      let body = pretty lhs <++> keyword "=" <++> pretty rhs
+       in case ws of
+            [] => body
+            _  => body `vappend` indent 2 (keyword "where" `vappend` indent 2 (vsep (map pretty ws)))
     prettyPrec _ (MkCaseClause lhs rhs) =
       pretty lhs <++> keyword "=>" <++> pretty rhs
     prettyPrec _ (MkWith lhs wps cs) =
@@ -309,10 +312,17 @@ mutual
     prettyPrec _ (MkImportDecl reexport name alias _ _) = importDoc reexport name alias
 
   export
+  showCharLit : Char -> String
+  showCharLit '\n' = "\\n"
+  showCharLit '\t' = "\\t"
+  showCharLit '\\' = "\\\\"
+  showCharLit '\'' = "\\'"
+  showCharLit c    = cast c
+
   Pretty AST.Constant where
     prettyPrec _ (AST.CInt i)    = line (show i)
     prettyPrec _ (AST.CString s) = dquotes (text s)
-    prettyPrec _ (AST.CChar c)   = squotes (line (show c))
+    prettyPrec _ (AST.CChar c)   = squotes (line (showCharLit c))
     prettyPrec _ (AST.CDouble d) = line (show d)
 
   export

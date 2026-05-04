@@ -133,7 +133,7 @@ mutual
   ||| Pattern-matching clause.
   public export
   data Clause : Type -> Type where
-    MkClause     : Expr nm -> Expr nm -> Clause nm
+    MkClause     : Expr nm -> Expr nm -> List (Decl nm) -> Clause nm
     MkCaseClause : Expr nm -> Expr nm -> Clause nm
     MkWith       : Expr nm -> List (Expr nm) -> List (Clause nm) -> Clause nm
     MkImposs     : Expr nm -> Clause nm
@@ -162,7 +162,7 @@ mutual
 
   ||| Data type declaration.
   public export
-  record DataDecl nm where
+  record DataDecl (nm : Type) where
     constructor MkDataDecl
     name    : nm
     params  : List (nm, Expr nm)
@@ -171,14 +171,14 @@ mutual
 
   ||| Constructor declaration.
   public export
-  record ConDecl nm where
+  record ConDecl (nm : Type) where
     constructor MkConDecl
     name : nm
     type : Expr nm
 
   ||| Record declaration.
   public export
-  record RecordDecl nm where
+  record RecordDecl (nm : Type) where
     constructor MkRecordDecl
     name    : nm
     params  : List (nm, Expr nm)
@@ -187,14 +187,14 @@ mutual
 
   ||| Record field declaration.
   public export
-  record FieldDecl nm where
+  record FieldDecl (nm : Type) where
     constructor MkFieldDecl
     name : nm
     type : Expr nm
 
   ||| Interface declaration.
   public export
-  record InterfaceDecl nm where
+  record InterfaceDecl (nm : Type) where
     constructor MkInterfaceDecl
     name    : nm
     params  : List (nm, Expr nm)
@@ -203,7 +203,7 @@ mutual
 
   ||| Implementation declaration.
   public export
-  record ImplDecl nm where
+  record ImplDecl (nm : Type) where
     constructor MkImplDecl
     name          : Maybe nm
     interfaceName : nm

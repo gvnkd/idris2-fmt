@@ -245,23 +245,23 @@ mutual
   translatePTerm (PLocal _ decls scope) =
     AST.ELocal [] (translatePTerm scope)
   translatePTerm (NewPi x) =
-    AST.EComment (MkComment LineComment "NewPi" 0 0) AST.EImplicit
+    let binder = x.val.binder
+        info = translatePiInfo binder.info
+        rig = binder.bind.rig
+        name = translateName (val (head binder.bind.names))
+        ty = translatePTerm binder.bind.type
+        scope = translatePTerm x.val.scope
+     in AST.EPi (translateRig rig) info (Just name) ty scope
   translatePTerm (Forall x) =
-    AST.EComment (MkComment LineComment "Forall" 0 0) AST.EImplicit
+    let (names, scope) = x.val
+        ns = map (translateName . val) names
+        sc = translatePTerm scope
+     in foldr (\n, acc => AST.EPi AST.RigW AST.Implicit (Just n) AST.EType acc) sc ns
   translatePTerm (PMultiline _ _ _ _) =
     AST.EComment (MkComment LineComment "multiline string" 0 0) AST.EImplicit
   translatePTerm (PUnifyLog _ _ x) = translatePTerm x
   translatePTerm (PWithUnambigNames _ _ x) = translatePTerm x
   translatePTerm tm = AST.EHole ("unsupported_" ++ show tm)
-
-||| Translate compiler PClause to formatter AST Clause.
-translatePClause : IS.PClause -> AST.Clause AST.Name
-translatePClause (MkPatClause _ lhs rhs _) =
-  AST.MkClause (translatePTerm lhs) (translatePTerm rhs)
-translatePClause (MkWithClause _ lhs wps _ _) =
-  AST.MkClause (translatePTerm lhs) (AST.EComment (MkComment LineComment "with clause" 0 0) (AST.EImplicit))
-translatePClause (MkImpossible _ lhs) =
-  AST.MkImposs (translatePTerm lhs)
 
 ||| Translate compiler Directive to formatter string.
 translateDirective : IS.Directive -> String
@@ -305,6 +305,8 @@ getFnName (PApp _ f _) = getFnName f
 getFnName (PNamedApp _ f _ _) = getFnName f
 getFnName (PAutoApp _ f _) = getFnName f
 getFnName (PBracketed _ t) = getFnName t
+getFnName (POp _ _ op _) = Just (translateName op.val.toName)
+getFnName (PPrefixOp _ op _) = Just (translateName op.val.toName)
 getFnName _ = Nothing
 
 ||| Translate compiler PTypeDecl to formatter ConDecl.
@@ -339,95 +341,107 @@ translateVisibility Core.TT.Public = AST.Public
 pair : Nat -> AST.Decl AST.Name -> (Nat, AST.Decl AST.Name)
 pair line decl = (line, decl)
 
-||| Translate compiler PDecl to formatter AST Decl.
-||| Returns the declaration paired with its source line number.
-translatePDecl : IS.PDecl -> (Nat, AST.Decl AST.Name)
-translatePDecl pdecl =
-  let line = fcLine pdecl.fc
-      d = val pdecl
-   in pair line $ case d of
-         IS.PClaim claim =>
-           let tyDecl = val claim.type
-               names = map (val . snd) (forget tyDecl.names)
-               docs = docToComments tyDecl.doc
-               vis = translateVisibility claim.vis
-            in case names of
-                 [] => AST.DComment (MkComment LineComment "empty claim" 0 0)
-                 (n :: _) => AST.DClaim docs vis (translateName n) (translatePTerm tyDecl.type)
-                             (map translateFnOpt claim.opts)
-         IS.PDef clauses =>
-           case clauses of
-             [] => AST.DComment (MkComment LineComment "empty PDef" 0 0)
-             (c :: _) =>
-               let lhs = case c of
-                           MkPatClause _ l _ _ => l
-                           MkWithClause _ l _ _ _ => l
-                           MkImpossible _ l => l
-                in case getFnName lhs of
-                     Nothing => AST.DComment (MkComment LineComment "could not extract function name" 0 0)
-                     Just n => AST.DDef [] n (map translatePClause clauses)
-         IS.PData doc vis treq (MkPData _ tyname tycon opts datacons) =>
-           let (params, ty) = translateDataType tycon
-               docs = docToComments doc
-               visibility = translateVisibility (collapseDefault vis)
-            in AST.DData docs visibility (MkDataDecl (translateName tyname) params ty (map translatePTypeDecl datacons))
-         IS.PData doc vis treq (MkPLater _ tyname tycon) =>
-           AST.DComment (MkComment LineComment "forward data declaration" 0 0)
-         IS.PParameters params decls =>
-           let ps = case params of
-                      Left pbs  => concatMap translatePlainBinder (forget pbs)
-                      Right pbs => map (\(n, t) => (n, Just t)) (concatMap (translateBasicMultiBinder . bind) (forget pbs))
-            in AST.DParams ps (map (snd . translatePDecl) decls)
-         IS.PUsing usings decls =>
-           let us = map (\(mn, tm) => (map translateName mn, translatePTerm tm)) usings
-            in AST.DUsing us (map (snd . translatePDecl) decls)
-         IS.PInterface vis constraints name doc params det conName methods =>
-           let ps = concatMap translateBasicMultiBinder params
-               parentTerms = map snd constraints
-               docs = docToComments doc
-               visibility = translateVisibility (collapseDefault vis)
-            in AST.DInterface docs visibility (MkInterfaceDecl (translateName name) ps (map translatePTerm parentTerms) (map (snd . translatePDecl) methods))
-         IS.PImplementation vis opts pass implicits constraints name params implName nusing body =>
-           let visibility = translateVisibility vis
-            in AST.DImpl [] visibility (MkImplDecl (map translateName implName) (translateName name) (map translatePTerm params) (map (map (snd . translatePDecl)) body))
-         IS.PRecord doc vis treq (MkPRecord tyname params opts conName decls) =>
-           let ps = concatMap (translateBasicMultiBinder . bind) params
-               fields = concatMap translatePField decls
-               con = map (translateName . val) conName
-               docs = docToComments doc
-               visibility = translateVisibility (collapseDefault vis)
-            in AST.DRecord docs visibility (MkRecordDecl (translateName tyname) ps con fields)
-         IS.PRecord doc vis treq (MkPRecordLater tyname params) =>
-           AST.DComment (MkComment LineComment "forward record declaration" 0 0)
-         IS.PFail msg decls =>
-           AST.DComment (MkComment LineComment "PFail not yet translated" 0 0)
-         IS.PMutual decls =>
-           AST.DMutual (map (snd . translatePDecl) decls)
-         IS.PFixity fixData =>
-           let ops = map (\op => translateName op.toName) (forget fixData.operators)
-            in AST.DFixity (MkFixityDecl (translateFixity fixData.fixity) fixData.precedence ops)
-         IS.PNamespace ns decls =>
-           AST.DNamespace [show ns] (map (snd . translatePDecl) decls)
-         IS.PTransform name lhs rhs =>
-           AST.DTransform name (translatePTerm lhs) (translatePTerm rhs)
-         IS.PRunElabDecl tm =>
-           AST.DRunElab (translatePTerm tm)
-         IS.PDirective dir =>
-           AST.DDirective (translateDirective dir)
-         IS.PBuiltin bt n =>
-           AST.DBuiltin (show bt) (translateName n)
-  where
-    translateFnOpt : IS.PFnOpt -> AST.FnOpt
-    translateFnOpt (IFnOpt TT.Inline) = AST.Inline
-    translateFnOpt (IFnOpt TT.TCInline) = AST.TCInline
-    translateFnOpt (IFnOpt TT.NoInline) = AST.NoInline
-    translateFnOpt _ = AST.NoInline
+||| Translate compiler PFnOpt to formatter FnOpt.
+translateFnOpt : IS.PFnOpt -> AST.FnOpt
+translateFnOpt (IFnOpt TT.Inline) = AST.Inline
+translateFnOpt (IFnOpt TT.TCInline) = AST.TCInline
+translateFnOpt (IFnOpt TT.NoInline) = AST.NoInline
+translateFnOpt _ = AST.NoInline
 
-    translateFixity : Core.TT.Fixity -> AST.Fixity
-    translateFixity InfixL = AST.InfixL
-    translateFixity InfixR = AST.InfixR
-    translateFixity Infix  = AST.Infix
-    translateFixity Prefix = AST.Prefix
+||| Translate compiler Fixity to formatter Fixity.
+translateFixity : Core.TT.Fixity -> AST.Fixity
+translateFixity InfixL = AST.InfixL
+translateFixity InfixR = AST.InfixR
+translateFixity Infix  = AST.Infix
+translateFixity Prefix = AST.Prefix
+
+mutual
+  ||| Translate compiler PClause to formatter AST Clause.
+  translatePClause : IS.PClause -> AST.Clause AST.Name
+  translatePClause (MkPatClause _ lhs rhs ws) =
+    AST.MkClause (translatePTerm lhs) (translatePTerm rhs) (map (snd . translatePDecl) ws)
+  translatePClause (MkWithClause _ lhs wps _ _) =
+    AST.MkClause (translatePTerm lhs) (AST.EComment (MkComment LineComment "with clause" 0 0) (AST.EImplicit)) []
+  translatePClause (MkImpossible _ lhs) =
+    AST.MkImposs (translatePTerm lhs)
+  
+  ||| Translate compiler PDecl to formatter AST Decl.
+  ||| Returns the declaration paired with its source line number.
+  translatePDecl : IS.PDecl -> (Nat, AST.Decl AST.Name)
+  translatePDecl pdecl =
+    let line = fcLine pdecl.fc
+        d = val pdecl
+     in pair line $ case d of
+           IS.PClaim claim =>
+             let tyDecl = val claim.type
+                 names = map (val . snd) (forget tyDecl.names)
+                 docs = docToComments tyDecl.doc
+                 vis = translateVisibility claim.vis
+              in case names of
+                   [] => AST.DComment (MkComment LineComment "empty claim" 0 0)
+                   (n :: _) => AST.DClaim docs vis (translateName n) (translatePTerm tyDecl.type)
+                               (map translateFnOpt claim.opts)
+           IS.PDef clauses =>
+             case clauses of
+               [] => AST.DComment (MkComment LineComment "empty PDef" 0 0)
+               (c :: _) =>
+                 let lhs = case c of
+                             MkPatClause _ l _ _ => l
+                             MkWithClause _ l _ _ _ => l
+                             MkImpossible _ l => l
+                  in case getFnName lhs of
+                       Nothing => AST.DComment (MkComment LineComment "could not extract function name" 0 0)
+                       Just n => AST.DDef [] n (map translatePClause clauses)
+           IS.PData doc vis treq (MkPData _ tyname tycon opts datacons) =>
+             let (params, ty) = translateDataType tycon
+                 docs = docToComments doc
+                 visibility = translateVisibility (collapseDefault vis)
+              in AST.DData docs visibility (MkDataDecl (translateName tyname) params ty (map translatePTypeDecl datacons))
+           IS.PData doc vis treq (MkPLater _ tyname tycon) =>
+             AST.DComment (MkComment LineComment "forward data declaration" 0 0)
+           IS.PParameters params decls =>
+             let ps = case params of
+                        Left pbs  => concatMap translatePlainBinder (forget pbs)
+                        Right pbs => map (\(n, t) => (n, Just t)) (concatMap (translateBasicMultiBinder . bind) (forget pbs))
+              in AST.DParams ps (map (snd . translatePDecl) decls)
+           IS.PUsing usings decls =>
+             let us = map (\(mn, tm) => (map translateName mn, translatePTerm tm)) usings
+              in AST.DUsing us (map (snd . translatePDecl) decls)
+           IS.PInterface vis constraints name doc params det conName methods =>
+             let ps = concatMap translateBasicMultiBinder params
+                 parentTerms = map snd constraints
+                 docs = docToComments doc
+                 visibility = translateVisibility (collapseDefault vis)
+              in AST.DInterface docs visibility (MkInterfaceDecl (translateName name) ps (map translatePTerm parentTerms) (map (snd . translatePDecl) methods))
+           IS.PImplementation vis opts pass implicits constraints name params implName nusing body =>
+             let visibility = translateVisibility vis
+              in AST.DImpl [] visibility (MkImplDecl (map translateName implName) (translateName name) (map translatePTerm params) (map (map (snd . translatePDecl)) body))
+           IS.PRecord doc vis treq (MkPRecord tyname params opts conName decls) =>
+             let ps = concatMap (translateBasicMultiBinder . bind) params
+                 fields = concatMap translatePField decls
+                 con = map (translateName . val) conName
+                 docs = docToComments doc
+                 visibility = translateVisibility (collapseDefault vis)
+              in AST.DRecord docs visibility (MkRecordDecl (translateName tyname) ps con fields)
+           IS.PRecord doc vis treq (MkPRecordLater tyname params) =>
+             AST.DComment (MkComment LineComment "forward record declaration" 0 0)
+           IS.PFail msg decls =>
+             AST.DComment (MkComment LineComment "PFail not yet translated" 0 0)
+           IS.PMutual decls =>
+             AST.DMutual (map (snd . translatePDecl) decls)
+           IS.PFixity fixData =>
+             let ops = map (\op => translateName op.toName) (forget fixData.operators)
+              in AST.DFixity (MkFixityDecl (translateFixity fixData.fixity) fixData.precedence ops)
+           IS.PNamespace ns decls =>
+             AST.DNamespace [show ns] (map (snd . translatePDecl) decls)
+           IS.PTransform name lhs rhs =>
+             AST.DTransform name (translatePTerm lhs) (translatePTerm rhs)
+           IS.PRunElabDecl tm =>
+             AST.DRunElab (translatePTerm tm)
+           IS.PDirective dir =>
+             AST.DDirective (translateDirective dir)
+           IS.PBuiltin bt n =>
+             AST.DBuiltin (show bt) (translateName n)
 
 ||| Convert compiler Error to formatter ParseError.
 fromError : CC.Error -> ParseError

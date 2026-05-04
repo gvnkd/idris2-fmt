@@ -10,7 +10,7 @@ data Foo : Type where
   MkFoo : Int -> Foo
 
 ||| An interface
-interface Showable (a : _) where
+interface Showable a where
   showIt : a -> String
 
 ||| A record
