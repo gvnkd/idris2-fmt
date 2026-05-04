@@ -5,6 +5,7 @@ import public Core.Metadata as CM
 import public Core.Name as CN
 import public Core.Name.Namespace as CNN
 import Data.List as L
+import Data.List1
 import Data.String as S
 import public Idris.Parser as IP
 import public Idris.Syntax as IS
@@ -100,9 +101,6 @@ mutual
   translateDataType Nothing = ([], AST.EType)
   translateDataType (Just t) = let (ps, t') = extractPiParams t
                                in (ps, translatePTerm t')
-  ||| Convert List1 to List.
-  list1ToList : List1 a -> List a
-  list1ToList (x ::: xs) = x :: xs
   ||| Translate PlainBinder to list of (name, type) pairs.
   translatePlainBinder : IS.PlainBinder' CN.Name -> List (AST.Name, Maybe (AST.Expr AST.Name))
   translatePlainBinder pb =
@@ -112,7 +110,7 @@ mutual
   ||| Translate BasicMultiBinder to list of (name, type) pairs.
   translateBasicMultiBinder : IS.BasicMultiBinder' CN.Name -> List (AST.Name, AST.Expr AST.Name)
   translateBasicMultiBinder (MkBasicMultiBinder rig names ty) =
-    map (\n => (translateName (val n), translatePTerm ty)) (list1ToList names)
+    map (\n => (translateName (val n), translatePTerm ty)) (forget names)
   ||| Translate PiInfo from compiler to formatter.
   translatePiInfo : Core.TT.Binder.PiInfo IS.PTerm -> AST.PiInfo (AST.Expr AST.Name)
   translatePiInfo Explicit = AST.Explicit
@@ -414,22 +412,13 @@ mutual
 fromError : CC.Error -> ParseError
 fromError err = ParseErr (show err)
 
-||| Split a string on a character.
-splitString : Char -> String -> List String
-splitString c s = go [] (unpack s)
-  where
-    go : List Char -> List Char -> List String
-    go acc [] = [pack (reverse acc)]
-    go acc (x :: xs) =
-      if x == c then pack (reverse acc) :: go [] xs else go (x :: acc) xs
-
 ||| Translate compiler Import to formatter ImportDecl.
 translateImport : IS.Import -> AST.ImportDecl
-translateImport imp = let path = splitString '/' (toPath imp.path)
-                      in let alias = if show imp.nameAs == show imp.path
-                                       then Nothing
-                                       else Just (show imp.nameAs)
-                         in MkImportDecl imp.reexport path alias Nothing Nothing
+translateImport imp = let path = forget (split (== '/') (toPath imp.path))
+                     in let alias = if show imp.nameAs == show imp.path
+                                      then Nothing
+                                      else Just (show imp.nameAs)
+                        in MkImportDecl imp.reexport path alias Nothing Nothing
 
 ||| Split source into lines.
 lines' : String -> List String
