@@ -285,7 +285,7 @@ mutual
   export implementation Pretty AST.ImportDecl where
            prettyPrec _ (MkImportDecl reexport name alias _ _) =
              importDoc reexport name alias
-  export showCharLit : Char -> String
+  showCharLit : Char -> String
   showCharLit '\n' = "\\n"
   showCharLit '\t' = "\\t"
   showCharLit '\\' = "\\\\"

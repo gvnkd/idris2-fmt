@@ -144,13 +144,6 @@ mutual
   translateConstant (Db d) = AST.EPrim (AST.CDouble d)
   translateConstant (PrT pt) = AST.ERef (AST.UN (translatePrimType pt))
   translateConstant _ = AST.EPrim (AST.CInt 0)
-  ||| Translate compiler PClause to formatter AST Clause (for case alternatives).
-  translatePClauseAsCase : IS.PClause -> AST.Clause AST.Name
-  translatePClauseAsCase (MkPatClause _ lhs rhs _) =
-    AST.MkCaseClause (translatePTerm lhs) (translatePTerm rhs)
-  translatePClauseAsCase (MkWithClause _ lhs wps _ _) =
-    AST.MkCaseClause (translatePTerm lhs) (AST.EComment (MkComment LineComment "with clause" 0 0) (AST.EImplicit))
-  translatePClauseAsCase (MkImpossible _ lhs) = AST.MkImposs (translatePTerm lhs)
   ||| Translate compiler PTerm to formatter AST Expr.
   translatePTerm : IS.PTerm -> AST.Expr AST.Name
   translatePTerm (PRef _ n) = AST.ERef (translateName n)
