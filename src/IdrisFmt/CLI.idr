@@ -43,14 +43,13 @@ parseArgs (_ :: args) = go args CFG.defaultConfig False False False []
 
 ||| Usage string displayed on --help or invalid input.
 export showUsage : String
-showUsage = unlines
-  [ "idris2-fmt [options] <files...>"
-  , ""
-  , "Options:"
-  , "  --check       Check formatting without writing"
-  , "  --inplace     Edit files in place"
-  , "  --stdin       Read from stdin"
-  , "  --indent N    Indentation width (default: 2)"
-  , "  --width N     Line length (default: 80)"
-  , "  --help        Show this help"
-  ]
+showUsage = unlines [ "idris2-fmt [options] <files...>"
+                    , ""
+                    , "Options:"
+                    , "  --check       Check formatting without writing"
+                    , "  --inplace     Edit files in place"
+                    , "  --stdin       Read from stdin"
+                    , "  --indent N    Indentation width (default: 2)"
+                    , "  --width N     Line length (default: 80)"
+                    , "  --help        Show this help"
+                    ]

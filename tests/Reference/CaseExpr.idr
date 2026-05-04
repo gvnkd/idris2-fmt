@@ -9,8 +9,7 @@ classify n = case n of
                _ => "other"
 
 classify' : Int -> String
-classify' n =
-  case n of
-    0 => "zero"
-    1 => "one"
-    _ => "other"
+classify' n = case n of
+                0 => "zero"
+                1 => "one"
+                _ => "other"

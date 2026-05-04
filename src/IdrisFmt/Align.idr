@@ -41,9 +41,9 @@ alignLine token line targetCol =
       if col >= targetCol
         then line
         else let pad = targetCol `minus` col
-                 n   = col `minus` 1
-                 (before, after) = strSplitAt n line
-             in before ++ spaces pad ++ after
+             in let n = col `minus` 1
+                in let (before, after) = strSplitAt n line
+                   in before ++ spaces pad ++ after
   where
     strSplitAt : Nat -> String -> (String, String)
     strSplitAt n s = let bs = take n (unpack s)
@@ -100,11 +100,8 @@ alignToken minIndent token src =
 export applyAlignment : CFG.Config -> String -> String
 applyAlignment cfg src =
   let rules = cfg.alignRules
-  in applySteps rules.alignCaseArrows " => "
-  $ applySteps rules.alignTypeSigs " : "
-  $ applySteps rules.alignFunctionDefs " = "
-  $ applySteps rules.alignRecordFields " : " src
+  in applySteps rules.alignCaseArrows " => " $ applySteps rules.alignTypeSigs " : " $ applySteps rules.alignFunctionDefs " = " $ applySteps rules.alignRecordFields " : " src
   where
     applySteps : Bool -> String -> String -> String
-    applySteps True  tok s = alignToken cfg.indentWidth tok s
-    applySteps False _   s = s
+    applySteps True tok s = alignToken cfg.indentWidth tok s
+    applySteps False _ s = s

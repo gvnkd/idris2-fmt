@@ -415,10 +415,10 @@ fromError err = ParseErr (show err)
 ||| Translate compiler Import to formatter ImportDecl.
 translateImport : IS.Import -> AST.ImportDecl
 translateImport imp = let path = forget (split (== '/') (toPath imp.path))
-                     in let alias = if show imp.nameAs == show imp.path
-                                      then Nothing
-                                      else Just (show imp.nameAs)
-                        in MkImportDecl imp.reexport path alias Nothing Nothing
+                      in let alias = if show imp.nameAs == show imp.path
+                                       then Nothing
+                                       else Just (show imp.nameAs)
+                         in MkImportDecl imp.reexport path alias Nothing Nothing
 
 ||| Split source into lines.
 lines' : String -> List String

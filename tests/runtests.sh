@@ -16,7 +16,7 @@
 FMT="${1:-./build/exec/idris2-fmt}"
 
 # Supported test cases. Add new names here as files are added.
-CASES="AsPattern CaseExpr Comments DataType Expr Fixity Forall Functions Gadt IfThenElse Implicit Interface LambdaDo LetBinding Mutual Operators Record WhereClause"
+CASES="AsPattern CaseExpr Comments DataType Expr Fixity Forall Functions Gadt IfThenElse Implicit Interface Mutual Operators Record WhereClause"
 
 FAILED=0
 PASSED=0

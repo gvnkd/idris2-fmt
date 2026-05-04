@@ -264,12 +264,12 @@ mutual
              keyword (fixityStr fix) <++> line (show prec) <++> hsep (map (line . show) names)
   importDoc : {opts : _} -> Bool -> List String -> Maybe String -> Doc opts
   importDoc reexport name alias =
-    let pub = if reexport then keyword "public" <++> empty else empty
+    let pub = if reexport then [keyword "public"] else []
     in let modName = line (concat (intersperse "." name))
        in let asDoc = case alias of
-                        Nothing => empty
-                        Just a => keyword "as" <++> line a
-          in keyword "import" <++> pub <+> modName <+> asDoc
+                        Nothing => []
+                        Just a => [keyword "as" <++> line a]
+          in hsep ([keyword "import"] ++ pub ++ [modName] ++ asDoc)
   export implementation Pretty AST.ImportDecl where
            prettyPrec _ (MkImportDecl reexport name alias _ _) =
              importDoc reexport name alias
