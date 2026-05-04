@@ -307,9 +307,10 @@ translatePDecl pdecl =
          IS.PClaim claim =>
            let tyDecl = val claim.type
                names = map (val . snd) (forget tyDecl.names)
+               docs = docToComments tyDecl.doc
             in case names of
                  [] => AST.DComment (MkComment LineComment "empty claim" 0 0)
-                 (n :: _) => AST.DClaim [] (translateName n) (translatePTerm tyDecl.type)
+                 (n :: _) => AST.DClaim docs (translateName n) (translatePTerm tyDecl.type)
                              (map translateFnOpt claim.opts)
          IS.PDef clauses =>
            case clauses of
@@ -324,7 +325,8 @@ translatePDecl pdecl =
                      Just n => AST.DDef [] n (map translatePClause clauses)
          IS.PData doc vis treq (MkPData _ tyname tycon opts datacons) =>
            let (params, ty) = translateDataType tycon
-            in AST.DData [] (MkDataDecl (translateName tyname) params ty (map translatePTypeDecl datacons))
+               docs = docToComments doc
+            in AST.DData docs (MkDataDecl (translateName tyname) params ty (map translatePTypeDecl datacons))
          IS.PData doc vis treq (MkPLater _ tyname tycon) =>
            AST.DComment (MkComment LineComment "forward data declaration" 0 0)
          IS.PParameters params decls =>
@@ -338,14 +340,16 @@ translatePDecl pdecl =
          IS.PInterface vis constraints name doc params det conName methods =>
            let ps = concatMap translateBasicMultiBinder params
                parentTerms = map snd constraints
-            in AST.DInterface [] (MkInterfaceDecl (translateName name) ps (map translatePTerm parentTerms) (map (snd . translatePDecl) methods))
+               docs = docToComments doc
+            in AST.DInterface docs (MkInterfaceDecl (translateName name) ps (map translatePTerm parentTerms) (map (snd . translatePDecl) methods))
          IS.PImplementation vis opts pass implicits constraints name params implName nusing body =>
            AST.DImpl [] (MkImplDecl (map translateName implName) (translateName name) (map translatePTerm params) (map (map (snd . translatePDecl)) body))
          IS.PRecord doc vis treq (MkPRecord tyname params opts conName decls) =>
            let ps = concatMap (translateBasicMultiBinder . bind) params
                fields = concatMap translatePField decls
                con = map (translateName . val) conName
-            in AST.DRecord [] (MkRecordDecl (translateName tyname) ps con fields)
+               docs = docToComments doc
+            in AST.DRecord docs (MkRecordDecl (translateName tyname) ps con fields)
          IS.PRecord doc vis treq (MkPRecordLater tyname params) =>
            AST.DComment (MkComment LineComment "forward record declaration" 0 0)
          IS.PFail msg decls =>
@@ -443,17 +447,22 @@ stripComment s =
             then (C.BlockComment, S.trim (substr 2 (length t `minus` 4) t))
            else (C.LineComment, t)
 
+||| Check if a comment is a doc comment (starts with |||).
+isDocComment : String -> Bool
+isDocComment s = isPrefixOf "|||" (S.trim s)
+
 ||| Extract comments from parser state.
+||| Filters out doc comments (|||) since those are handled via declaration doc fields.
 extractComments : String -> PRS.State -> List C.Comment
 extractComments src state =
   let decs = state.decorations
       commentDecs = filter (\(_, d, _) => d == Comment) decs
-   in map (\((_, start, end), _, _) =>
+   in mapMaybe (\((_, start, end), _, _) =>
              let text = extractText src start end
                  (style, content) = stripComment text
-                 line = cast (fst start)
-                 col  = cast (snd start)
-              in C.MkComment style content line col)
+              in if isDocComment text
+                 then Nothing
+                 else Just (C.MkComment style content (cast (fst start)) (cast (snd start))))
           commentDecs
 
 ||| Pair a comment with its declaration wrapper and line number.

@@ -140,9 +140,21 @@ mutual
        in case comments of
             [] => body
             _  => vsep (map pretty comments) `vappend` body
-    prettyPrec _ (DData _ dd) = pretty dd
-    prettyPrec _ (DRecord _ rd) = pretty rd
-    prettyPrec _ (DInterface _ id) = pretty id
+    prettyPrec _ (DData comments dd) =
+      let base = pretty dd
+       in case comments of
+            [] => base
+            _  => vsep (map pretty comments) `vappend` base
+    prettyPrec _ (DRecord comments rd) =
+      let base = pretty rd
+       in case comments of
+            [] => base
+            _  => vsep (map pretty comments) `vappend` base
+    prettyPrec _ (DInterface comments id) =
+      let base = pretty id
+       in case comments of
+            [] => base
+            _  => vsep (map pretty comments) `vappend` base
     prettyPrec _ (DImpl _ impl) = pretty impl
     prettyPrec _ (DFixity fd) = pretty fd
     prettyPrec _ (DNamespace ns decls) =
