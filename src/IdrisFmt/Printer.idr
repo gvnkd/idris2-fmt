@@ -42,6 +42,10 @@ mutual
   fixityStr AST.InfixR = "infixr"
   fixityStr AST.Infix = "infix"
   fixityStr AST.Prefix = "prefix"
+  branchDoc : {opts : _} -> Doc opts -> AST.Expr AST.Name -> Doc opts
+  branchDoc kw (EDo _ stmts) =
+    hangSep' 2 (kw <++> keyword "do") (vsep (map pretty stmts))
+  branchDoc kw expr = kw <++> pretty expr
   export implementation Pretty AST.Name where
            prettyPrec _ (AST.UN s) = D.ident s
            prettyPrec _ (AST.MN s i) = D.ident (s ++ "_" ++ show i)
@@ -59,10 +63,14 @@ mutual
              parenthesise (d > Open) $ pretty arg <++> line "->" <++> pretty ret
            prettyPrec d (EForall ns scope) =
              parenthesise (d > Open) $ keyword "forall" <++> hsep (map pretty ns) <++> line "." <++> pretty scope
+           prettyPrec d (ELam rig _ pat ty (EDo _ stmts)) =
+             parenthesise (d > Open) $ hangSep' 2 (line "\\" <+> lamBinder rig pat ty <++> line "=>" <++> keyword "do") (vsep (map pretty stmts))
            prettyPrec d (ELam rig _ pat ty scope) =
              parenthesise (d > Open) $ line "\\" <+> lamBinder rig pat ty <++> line "=>" <++> pretty scope
            prettyPrec d (ELet rig pat ty val scope _) =
              parenthesise (d > Open) $ keyword "let" <++> letBinder rig pat ty <++> equals <++> pretty val `vappend` keyword "in" <++> pretty scope
+           prettyPrec d (EApp f (EDo _ stmts)) =
+             parenthesise (d >= App) $ hangSep' 2 (prettyPrec Open f <++> keyword "do") (vsep (map pretty stmts))
            prettyPrec d (EApp f x) =
              parenthesise (d >= App) $ prettyPrec Open f <++> prettyPrec App x
            prettyPrec _ (ENamedApp f n x) =
@@ -91,8 +99,8 @@ mutual
            prettyPrec _ (EIdiom _ x) = lbracket <+> pipe <+> pretty x <+> pipe <+> rbracket
            prettyPrec _ (EIf c t f) =
              let cond = keyword "if" <++> pretty c
-             in let thenBranch = keyword "then" <++> pretty t
-                in let elseBranch = keyword "else" <++> pretty f
+             in let thenBranch = branchDoc (keyword "then") t
+                in let elseBranch = branchDoc (keyword "else") f
                    in let horizontal = cond <++> thenBranch <++> elseBranch
                       in let vertical = (cond `vappend` indent 2 thenBranch) `vappend` indent 2 elseBranch
                          in ifMultiline horizontal vertical
@@ -168,12 +176,20 @@ mutual
            prettyPrec _ (DComment c) = pretty c
            prettyPrec _ (DBlank n) = vsep (replicate n (line ""))
   export implementation Pretty (AST.Clause AST.Name) where
+           prettyPrec _ (MkClause lhs (EDo _ stmts) ws) =
+             let body = hangSep' 2 (pretty lhs <++> keyword "=" <++> keyword "do") (vsep (map pretty stmts))
+             in case ws of
+                  [] => body
+                  _ =>
+                    body `vappend` indent 2 (keyword "where" `vappend` indent 2 (vsep (map pretty ws)))
            prettyPrec _ (MkClause lhs rhs ws) =
              let body = hangSep 2 (pretty lhs <++> keyword "=") (pretty rhs)
              in case ws of
                   [] => body
                   _ =>
                     body `vappend` indent 2 (keyword "where" `vappend` indent 2 (vsep (map pretty ws)))
+           prettyPrec _ (MkCaseClause lhs (EDo _ stmts)) =
+             hangSep' 2 (pretty lhs <++> keyword "=>" <++> keyword "do") (vsep (map pretty stmts))
            prettyPrec _ (MkCaseClause lhs rhs) =
              hangSep' 2 (pretty lhs <++> keyword "=>") (pretty rhs)
            prettyPrec _ (MkWith lhs wps cs) =
