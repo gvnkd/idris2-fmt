@@ -1,96 +1,122 @@
 #!/bin/sh
-# Bulletproof test runner for idris2-fmt
+# Test runner for idris2-fmt
 # Usage: runtests <formatter-binary>
+#
+# Workflow per test case:
+#   1. Select case from CASES list
+#   2. Compile Reference/<case>.idr
+#   3. Format Reference/<case>.idr → formatted/<case>.idr
+#   4. Compile formatted/<case>.idr
+#   5. Check identity: formatted == Reference (idempotency)
+#   6. Compile Broken/<case>.idr
+#   7. Format Broken/<case>.idr → formatted-broken/<case>.idr
+#   8. Compile formatted-broken/<case>.idr
+#   9. Check identity: formatted-broken == Reference (convergence)
 
 FMT="${1:-./build/exec/idris2-fmt}"
-REF="tests/Reference.idr"
-BROKEN="tests/broken.idr"
-TMPDIR="/tmp/idris2-fmt-tests-$$"
-mkdir -p "$TMPDIR"
-REF_TMP="$TMPDIR/Reference.idr"
-BROKEN_TMP="$TMPDIR/Reference.idr"
+
+# Supported test cases. Add new names here as files are added.
+CASES="AsPattern CaseExpr Comments DataType Expr Fixity Forall Functions Gadt IfThenElse Implicit Interface LambdaDo LetBinding Mutual Operators Record WhereClause"
+
 FAILED=0
+PASSED=0
 
 compile_idr() {
   local file="$1"
+  local label="$2"
   local dir=$(dirname "$file")
   local name=$(basename "$file")
-  local label="$2"
-  echo "  Compiling $label..."
   (cd "$dir" && idris2 --check "$name" > /dev/null 2>&1)
   if [ $? -eq 0 ]; then
-    echo "    PASS"
+    echo "    PASS compile: $label"
+    return 0
   else
-    echo "    FAIL"
+    echo "    FAIL compile: $label"
     FAILED=1
+    return 1
   fi
 }
 
-# Step 1: Copy Reference to tmp and compile
-echo "Step 1: Compile Reference.idr"
-cp "$REF" "$REF_TMP"
-compile_idr "$REF_TMP" "Reference.idr"
+format_file() {
+  local input="$1"
+  local output="$2"
+  local label="$3"
+  "$FMT" --stdin < "$input" > "$output" 2>/dev/null
+  if [ $? -eq 0 ]; then
+    echo "    PASS format:  $label"
+    return 0
+  else
+    echo "    FAIL format:  $label"
+    FAILED=1
+    return 1
+  fi
+}
 
-# Step 2: Format Reference.idr to tmp
-echo "Step 2: Format Reference.idr"
-"$FMT" --stdin < "$REF" > "$REF_TMP" 2>/dev/null
-if [ $? -eq 0 ]; then
-  echo "  PASS"
-else
-  echo "  FAIL: formatter exited with error"
-  FAILED=1
-fi
+check_identity() {
+  local left="$1"
+  local right="$2"
+  local label="$3"
+  if diff -q "$left" "$right" > /dev/null 2>&1; then
+    echo "    PASS identity: $label"
+    return 0
+  else
+    echo "    FAIL identity: $label"
+    diff "$left" "$right"
+    FAILED=1
+    return 1
+  fi
+}
 
-# Step 3: Check identity
-echo "Step 3: Check identity (formatted == Reference.idr)"
-if diff -q "$REF" "$REF_TMP" > /dev/null 2>&1; then
-  echo "  PASS"
-else
-  echo "  FAIL"
-  diff "$REF" "$REF_TMP"
-  FAILED=1
-fi
+# Prepare temp dirs
+TMPDIR="/tmp/idris2-fmt-tests-$$"
+FORMATTED_DIR="$TMPDIR/formatted"
+BROKEN_FMT_DIR="$TMPDIR/formatted-broken"
+mkdir -p "$FORMATTED_DIR" "$BROKEN_FMT_DIR"
 
-# Step 3.1: Compile formatted Reference
-echo "Step 3.1: Compile formatted Reference.idr"
-compile_idr "$REF_TMP" "formatted Reference.idr"
+for CASE in $CASES; do
+  REF="tests/Reference/${CASE}.idr"
+  BRK="tests/Broken/${CASE}.idr"
+  FMT_OUT="$FORMATTED_DIR/Reference.idr"
+  BRK_OUT="$BROKEN_FMT_DIR/Reference.idr"
 
-# Step 4: Format broken.idr to tmp (use different tmpdir to avoid conflict)
-BROKEN_DIR="/tmp/idris2-fmt-tests-broken-$$"
-mkdir -p "$BROKEN_DIR"
-BROKEN_TMP="$BROKEN_DIR/Reference.idr"
-echo "Step 4: Format broken.idr"
-"$FMT" --stdin < "$BROKEN" > "$BROKEN_TMP" 2>/dev/null
-if [ $? -eq 0 ]; then
-  echo "  PASS"
-else
-  echo "  FAIL: formatter exited with error"
-  FAILED=1
-fi
+  echo "=== $CASE ==="
 
-# Step 5: Check identity with Reference
-echo "Step 5: Check identity (broken-formatted == Reference.idr)"
-if diff -q "$BROKEN_TMP" "$REF" > /dev/null 2>&1; then
-  echo "  PASS"
-else
-  echo "  FAIL"
-  diff "$REF" "$BROKEN_TMP"
-  FAILED=1
-fi
+  # 2. Compile reference
+  cp "$REF" "$TMPDIR/Reference.idr"
+  compile_idr "$TMPDIR/Reference.idr" "reference" || { echo ""; continue; }
 
-# Step 5.1: Compile formatted broken
-echo "Step 5.1: Compile formatted broken.idr"
-compile_idr "$BROKEN_TMP" "formatted broken.idr"
+  # 3. Format reference
+  format_file "$REF" "$FMT_OUT" "reference" || { echo ""; continue; }
+
+  # 4. Compile formatted
+  compile_idr "$FMT_OUT" "formatted reference" || { echo ""; continue; }
+
+  # 5. Check idempotency
+  check_identity "$REF" "$FMT_OUT" "idempotency"
+
+  # 6. Compile broken
+  cp "$BRK" "$TMPDIR/Reference.idr"
+  compile_idr "$TMPDIR/Reference.idr" "broken" || { echo ""; continue; }
+
+  # 7. Format broken
+  format_file "$BRK" "$BRK_OUT" "broken" || { echo ""; continue; }
+
+  # 8. Compile formatted broken
+  compile_idr "$BRK_OUT" "formatted broken" || { echo ""; continue; }
+
+  # 9. Check convergence
+  check_identity "$REF" "$BRK_OUT" "convergence"
+
+  echo ""
+done
 
 # Cleanup
-rm -rf "$TMPDIR" "$BROKEN_DIR"
+rm -rf "$TMPDIR"
 
 if [ "$FAILED" -eq 0 ]; then
-  echo ""
   echo "All tests passed."
   exit 0
 else
-  echo ""
   echo "Some tests failed."
   exit 1
 fi
