@@ -61,7 +61,7 @@ check_identity() {
     return 0
   else
     echo "    FAIL identity: $label"
-    diff -y -W 160 "$left" "$right"
+    diff -y -W 90 "$left" "$right"
     FAILED=1
     return 1
   fi
