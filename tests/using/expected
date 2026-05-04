@@ -1,0 +1,4 @@
+module Using
+using (x : Int y : String) where
+  foo : String
+  foo = y ++ show x

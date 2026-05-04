@@ -109,6 +109,13 @@ mutual
   list1ToList : List1 a -> List a
   list1ToList (x ::: xs) = x :: xs
 
+  ||| Translate PlainBinder to list of (name, type) pairs.
+  translatePlainBinder : IS.PlainBinder' CN.Name -> List (AST.Name, Maybe (AST.Expr AST.Name))
+  translatePlainBinder pb =
+    let n : WithFC CN.Name = WithData.get "name" pb
+        tm : IS.PTerm = val pb
+     in [(translateName (val n), Just (translatePTerm tm))]
+
   ||| Translate BasicMultiBinder to list of (name, type) pairs.
   translateBasicMultiBinder : IS.BasicMultiBinder' CN.Name -> List (AST.Name, AST.Expr AST.Name)
   translateBasicMultiBinder (MkBasicMultiBinder rig names ty) =
@@ -209,14 +216,49 @@ mutual
     AST.EComment (MkComment LineComment "range stream" 0 0) (translatePTerm start)
   translatePTerm tm = AST.EHole ("unsupported_" ++ show tm)
 
-  ||| Translate compiler PClause to formatter AST Clause.
-  translatePClause : IS.PClause -> AST.Clause AST.Name
-  translatePClause (MkPatClause _ lhs rhs _) =
-    AST.MkClause (translatePTerm lhs) (translatePTerm rhs)
-  translatePClause (MkWithClause _ lhs wps _ _) =
-    AST.MkClause (translatePTerm lhs) (AST.EComment (MkComment LineComment "with clause" 0 0) (AST.EImplicit))
-  translatePClause (MkImpossible _ lhs) =
-    AST.MkImposs (translatePTerm lhs)
+||| Translate compiler PClause to formatter AST Clause.
+translatePClause : IS.PClause -> AST.Clause AST.Name
+translatePClause (MkPatClause _ lhs rhs _) =
+  AST.MkClause (translatePTerm lhs) (translatePTerm rhs)
+translatePClause (MkWithClause _ lhs wps _ _) =
+  AST.MkClause (translatePTerm lhs) (AST.EComment (MkComment LineComment "with clause" 0 0) (AST.EImplicit))
+translatePClause (MkImpossible _ lhs) =
+  AST.MkImposs (translatePTerm lhs)
+
+||| Translate compiler Directive to formatter string.
+translateDirective : IS.Directive -> String
+translateDirective (Hide (HideName n)) = "hide " ++ show n
+translateDirective (Hide (HideFixity _ n)) = "hide " ++ show n
+translateDirective (Unhide n) = "unhide " ++ show n
+translateDirective (Logging Nothing) = "logging off"
+translateDirective (Logging (Just _)) = "logging on"
+translateDirective (LazyOn True) = "lazy on"
+translateDirective (LazyOn False) = "lazy off"
+translateDirective (UnboundImplicits True) = "unbound_implicits on"
+translateDirective (UnboundImplicits False) = "unbound_implicits off"
+translateDirective (AmbigDepth n) = "ambiguity_depth " ++ show n
+translateDirective (TotalityDepth n) = "totality_depth " ++ show n
+translateDirective (DefaultTotality _) = "default total"
+translateDirective (PrefixRecordProjections True) = "prefix_record_projections on"
+translateDirective (PrefixRecordProjections False) = "prefix_record_projections off"
+translateDirective (AutoImplicitDepth n) = "auto_implicit_depth " ++ show n
+translateDirective (NFMetavarThreshold n) = "nfmetavar_threshold " ++ show n
+translateDirective (SearchTimeout n) = "search_timeout " ++ show n
+translateDirective (CGAction cg act) = "cg " ++ cg ++ " " ++ act
+translateDirective (Extension _) = "language"
+translateDirective (Overloadable n) = "overloadable " ++ show n
+translateDirective (Names n ns) = "names " ++ show n ++ " " ++ show ns
+translateDirective (StartExpr tm) = "startExpr ..."
+translateDirective (PairNames n1 n2 n3) = "pair " ++ show n1 ++ " " ++ show n2 ++ " " ++ show n3
+translateDirective (RewriteName n1 n2) = "rewrite " ++ show n1 ++ " " ++ show n2
+translateDirective (PrimInteger n) = "integerLit " ++ show n
+translateDirective (PrimString n) = "stringLit " ++ show n
+translateDirective (PrimChar n) = "charLit " ++ show n
+translateDirective (PrimDouble n) = "doubleLit " ++ show n
+translateDirective (PrimTTImp n) = "primTTImp " ++ show n
+translateDirective (PrimName n) = "primName " ++ show n
+translateDirective (PrimDecls n) = "primDecls " ++ show n
+translateDirective (ForeignImpl n tms) = "foreign " ++ show n
 
 ||| Extract function name from a clause LHS.
 getFnName : IS.PTerm -> Maybe AST.Name
@@ -272,9 +314,13 @@ translatePDecl pdecl =
         IS.PData doc vis treq (MkPLater _ tyname tycon) =>
           AST.DComment (MkComment LineComment "forward data declaration" 0 0)
         IS.PParameters params decls =>
-          AST.DComment (MkComment LineComment "PParameters not yet translated" 0 0)
+          let ps = case params of
+                     Left pbs  => concatMap translatePlainBinder (forget pbs)
+                     Right pbs => map (\(n, t) => (n, Just t)) (concatMap (translateBasicMultiBinder . bind) (forget pbs))
+           in AST.DParams ps (map translatePDecl decls)
         IS.PUsing usings decls =>
-          AST.DComment (MkComment LineComment "PUsing not yet translated" 0 0)
+          let us = map (\(mn, tm) => (map translateName mn, translatePTerm tm)) usings
+           in AST.DUsing us (map translatePDecl decls)
         IS.PInterface vis constraints name doc params det conName methods =>
           let ps = concatMap translateBasicMultiBinder params
               parentTerms = map snd constraints
@@ -291,20 +337,20 @@ translatePDecl pdecl =
         IS.PFail msg decls =>
           AST.DComment (MkComment LineComment "PFail not yet translated" 0 0)
         IS.PMutual decls =>
-          AST.DComment (MkComment LineComment "PMutual not yet translated" 0 0)
+          AST.DMutual (map translatePDecl decls)
         IS.PFixity fixData =>
           let ops = map (\op => translateName op.toName) (forget fixData.operators)
            in AST.DFixity (MkFixityDecl (translateFixity fixData.fixity) fixData.precedence ops)
         IS.PNamespace ns decls =>
           AST.DNamespace [show ns] (map translatePDecl decls)
         IS.PTransform name lhs rhs =>
-          AST.DComment (MkComment LineComment "PTransform not yet translated" 0 0)
+          AST.DTransform name (translatePTerm lhs) (translatePTerm rhs)
         IS.PRunElabDecl tm =>
-          AST.DComment (MkComment LineComment "PRunElabDecl not yet translated" 0 0)
+          AST.DRunElab (translatePTerm tm)
         IS.PDirective dir =>
-          AST.DComment (MkComment LineComment "PDirective not yet translated" 0 0)
+          AST.DDirective (translateDirective dir)
         IS.PBuiltin bt n =>
-          AST.DComment (MkComment LineComment "PBuiltin not yet translated" 0 0)
+          AST.DBuiltin (show bt) (translateName n)
   where
     translateFnOpt : IS.PFnOpt -> AST.FnOpt
     translateFnOpt (IFnOpt TT.Inline) = AST.Inline

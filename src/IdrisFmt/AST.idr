@@ -78,6 +78,10 @@ mutual
     DMutual      : List (Decl nm) -> Decl nm
     DParams      : List (nm, Maybe (Expr nm)) -> List (Decl nm) -> Decl nm
     DUsing       : List (Maybe nm, Expr nm) -> List (Decl nm) -> Decl nm
+    DDirective   : String -> Decl nm
+    DBuiltin     : String -> nm -> Decl nm
+    DTransform   : String -> Expr nm -> Expr nm -> Decl nm
+    DRunElab     : Expr nm -> Decl nm
     DComment     : C.Comment -> Decl nm
     DBlank       : Nat -> Decl nm
 

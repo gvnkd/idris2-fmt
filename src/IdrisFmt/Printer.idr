@@ -158,6 +158,11 @@ mutual
       keyword "using" <++> parens (hsep (map usingDoc usings))
       <++> keyword "where"
       `vappend` indent 2 (vsep (map pretty decls))
+    prettyPrec _ (DDirective s) = keyword "%" <+> line s
+    prettyPrec _ (DBuiltin bt n) = keyword "%builtin" <++> line bt <++> pretty n
+    prettyPrec _ (DTransform name lhs rhs) =
+      keyword "%transform" <++> line name <++> pretty lhs <++> keyword "=" <++> pretty rhs
+    prettyPrec _ (DRunElab tm) = keyword "%runElab" <++> pretty tm
     prettyPrec _ (DComment c) = pretty c
     prettyPrec _ (DBlank n) = vsep (replicate n (line ""))
 
