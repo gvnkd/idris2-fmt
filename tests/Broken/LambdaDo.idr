@@ -8,7 +8,7 @@ lam xs = map (\x => x * 2) xs
 
 doBlock : IO ()
 doBlock = do
-putStrLn "hello"
-x <- getLine
-let y = x ++ "!"
-putStrLn y
+  putStrLn "hello"
+  x <- getLine
+  let y = x ++ "!"
+  putStrLn y

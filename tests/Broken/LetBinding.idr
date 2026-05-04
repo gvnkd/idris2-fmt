@@ -5,3 +5,8 @@ module Reference
 letTest : Int -> Int
 letTest x = let y = x + 1
             in y * 2
+
+letTest' : Int -> Int
+letTest' x =
+  let y = x + 1
+  in y * 2
