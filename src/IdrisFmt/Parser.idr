@@ -220,7 +220,7 @@ mutual
   translatePTerm (PPair _ x y) =
     AST.EPair (translatePTerm x) (translatePTerm y)
   translatePTerm (PUnit _) =
-    AST.EImplicit
+    AST.EUnit
   translatePTerm (PIfThenElse _ c t f) =
     AST.EIf (translatePTerm c) (translatePTerm t) (translatePTerm f)
   translatePTerm (PIdiom _ ns x) =
@@ -275,7 +275,7 @@ translateDirective (UnboundImplicits True) = "unbound_implicits on"
 translateDirective (UnboundImplicits False) = "unbound_implicits off"
 translateDirective (AmbigDepth n) = "ambiguity_depth " ++ show n
 translateDirective (TotalityDepth n) = "totality_depth " ++ show n
-translateDirective (DefaultTotality _) = "default total"
+translateDirective (DefaultTotality treq) = "default " ++ show treq
 translateDirective (PrefixRecordProjections True) = "prefix_record_projections on"
 translateDirective (PrefixRecordProjections False) = "prefix_record_projections off"
 translateDirective (AutoImplicitDepth n) = "auto_implicit_depth " ++ show n

@@ -112,6 +112,7 @@ mutual
     EIf         : Expr nm -> Expr nm -> Expr nm -> Expr nm
     EHole       : String -> Expr nm
     EType       : Expr nm
+    EUnit       : Expr nm
     EImplicit   : Expr nm
     EQuote      : Expr nm -> Expr nm
     EUnquote    : Expr nm -> Expr nm

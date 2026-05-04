@@ -1,14 +1,14 @@
 module DocComments
--- A simple function
+||| A simple function
 foo : Int -> Int
 foo x = x + 1
--- A data type
+||| A data type
 data Foo : Type where
   MkFoo : Int -> Foo
--- An interface
+||| An interface
 interface Showable (a : _) where
   showIt : a -> String
--- A record
+||| A record
 record Point where
   constructor MkPoint
   x : Double

@@ -1,5 +1,5 @@
 module DoBlocks
-foo : IO _
+foo : IO ()
 foo = do
         putStrLn "hello"
         x  <- getLine
