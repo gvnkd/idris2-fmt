@@ -17,12 +17,9 @@ mutual
   prettyRig AST.Rig0 = line "0 "
   prettyRig AST.Rig1 = line "1 "
   prettyRig AST.RigW = Doc.empty
-  lamBinder : {opts : _} -> AST.RigCount -> AST.Expr AST.Name -> AST.Expr AST.Name -> Doc opts
-  lamBinder r p AST.EImplicit = prettyRig r <+> pretty p
-  lamBinder r p t             = prettyRig r <+> pretty p <++> colon <++> pretty t
-  letBinder : {opts : _} -> AST.RigCount -> AST.Expr AST.Name -> AST.Expr AST.Name -> Doc opts
-  letBinder r p AST.EImplicit = prettyRig r <+> pretty p
-  letBinder r p t             = prettyRig r <+> pretty p <++> colon <++> pretty t
+  binderDoc : {opts : _} -> AST.RigCount -> AST.Expr AST.Name -> AST.Expr AST.Name -> Doc opts
+  binderDoc r p AST.EImplicit = prettyRig r <+> pretty p
+  binderDoc r p t             = prettyRig r <+> pretty p <++> colon <++> pretty t
   implNameDoc : {opts : _} -> Maybe AST.Name -> Doc opts
   implNameDoc Nothing = Doc.empty
   implNameDoc (Just n) = pretty n <++> equals
@@ -57,6 +54,9 @@ mutual
     hangSep' 2 (kw <++> keyword "do") (vsep (map pretty stmts))
   branchDoc kw (EIf c t f) = kw `vappend` indent 2 (pretty (EIf c t f))
   branchDoc kw expr = kw <++> pretty expr
+  withComments : {opts : _} -> List C.Comment -> Doc opts -> Doc opts
+  withComments [] base = base
+  withComments cs base = vsep (map pretty cs) `vappend` base
   export implementation Pretty AST.Name where
            prettyPrec _ (AST.UN s) = D.ident s
            prettyPrec _ (AST.MN s i) = D.ident (s ++ "_" ++ show i)
@@ -75,11 +75,11 @@ mutual
            prettyPrec d (EForall ns scope) =
              parenthesise (d > Open) $ keyword "forall" <++> hsep (map pretty ns) <++> line "." <++> pretty scope
            prettyPrec d (ELam rig _ pat ty (EDo _ stmts)) =
-             parenthesise (d > Open) $ hangSep' 2 (line "\\" <+> lamBinder rig pat ty <++> line "=>" <++> keyword "do") (vsep (map pretty stmts))
+             parenthesise (d > Open) $ hangSep' 2 (line "\\" <+> binderDoc rig pat ty <++> line "=>" <++> keyword "do") (vsep (map pretty stmts))
            prettyPrec d (ELam rig _ pat ty scope) =
-             parenthesise (d > Open) $ line "\\" <+> lamBinder rig pat ty <++> line "=>" <++> pretty scope
+             parenthesise (d > Open) $ line "\\" <+> binderDoc rig pat ty <++> line "=>" <++> pretty scope
            prettyPrec d (ELet rig pat ty val scope _) =
-             parenthesise (d > Open) $ keyword "let" <++> letBinder rig pat ty <++> equals <++> pretty val `vappend` keyword "in" <++> pretty scope
+             parenthesise (d > Open) $ keyword "let" <++> binderDoc rig pat ty <++> equals <++> pretty val `vappend` keyword "in" <++> pretty scope
            prettyPrec d (EApp f (EDo _ stmts)) =
              parenthesise (d >= App) $ hangSep' 2 (prettyPrec Open f <++> keyword "do") (vsep (map pretty stmts))
            prettyPrec d (EApp f x) =
@@ -146,29 +146,18 @@ mutual
                                 [] => visDoc <+> pretty n <++> colon <++> pretty ty
                                 _ =>
                                   visDoc <+> fnOptsDoc <++> pretty n <++> colon <++> pretty ty
-                   in case comments of
-                        [] => base
-                        _ => vsep (map pretty comments) `vappend` base
-           prettyPrec _ (DDef comments n clauses) =
-             let body = vsep (map pretty clauses)
-             in case comments of
-                  [] => body
-                  _ => vsep (map pretty comments) `vappend` body
+                   in withComments comments base
+           prettyPrec _ (DDef comments n clauses) = let body = vsep (map pretty clauses)
+                                                    in withComments comments body
            prettyPrec _ (DData comments vis dd) =
              let base = visibilityDoc vis <+> pretty dd
-             in case comments of
-                  [] => base
-                  _ => vsep (map pretty comments) `vappend` base
+             in withComments comments base
            prettyPrec _ (DRecord comments vis rd) =
              let base = visibilityDoc vis <+> pretty rd
-             in case comments of
-                  [] => base
-                  _ => vsep (map pretty comments) `vappend` base
+             in withComments comments base
            prettyPrec _ (DInterface comments vis id) =
              let base = visibilityDoc vis <+> pretty id
-             in case comments of
-                  [] => base
-                  _ => vsep (map pretty comments) `vappend` base
+             in withComments comments base
            prettyPrec _ (DImpl _ vis impl) = let base = visibilityDoc vis <+> pretty impl
                                              in base
            prettyPrec _ (DFixity fd) = pretty fd
@@ -274,14 +263,13 @@ mutual
            prettyPrec _ (MkFixityDecl fix prec names) =
              keyword (fixityStr fix) <++> line (show prec) <++> hsep (map (line . show) names)
   importDoc : {opts : _} -> Bool -> List String -> Maybe String -> Doc opts
-  importDoc reexport name Nothing =
-    if reexport
-      then keyword "import" <++> keyword "public" <++> line (concat (intersperse "." name))
-      else keyword "import" <++> line (concat (intersperse "." name))
-  importDoc reexport name (Just a) =
-    if reexport
-      then keyword "import" <++> keyword "public" <++> line (concat (intersperse "." name)) <++> keyword "as" <++> line a
-      else keyword "import" <++> line (concat (intersperse "." name)) <++> keyword "as" <++> line a
+  importDoc reexport name alias =
+    let pub = if reexport then keyword "public" <++> empty else empty
+    in let modName = line (concat (intersperse "." name))
+       in let asDoc = case alias of
+                        Nothing => empty
+                        Just a => keyword "as" <++> line a
+          in keyword "import" <++> pub <+> modName <+> asDoc
   export implementation Pretty AST.ImportDecl where
            prettyPrec _ (MkImportDecl reexport name alias _ _) =
              importDoc reexport name alias
