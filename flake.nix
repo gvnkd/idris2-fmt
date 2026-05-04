@@ -64,6 +64,18 @@
           idris2 --build
           echo "Build complete."
         '';
+
+        testScript = pkgs.writeShellScriptBin "test" ''
+          set -e
+          echo "Building main library..."
+          idris2 --build idris2-fmt.ipkg
+          echo "Building test runner..."
+          cd tests
+          idris2 --build tests.ipkg
+          echo "Running tests..."
+          ./build/test/exec/runtests $(realpath ../build/exec/idris2-fmt)
+          cd ..
+        '';
       in
       {
         packages = {
@@ -78,6 +90,7 @@
             python3
             gnused gnugrep gawk diffutils jq yq ripgrep
             buildScript
+            testScript
           ];
           buildInputs = [
             idris2Wrapped

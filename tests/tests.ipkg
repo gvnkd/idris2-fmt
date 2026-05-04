@@ -1,0 +1,13 @@
+package idris2-fmt-test
+
+authors = "Rune"
+
+main = Main
+
+executable = runtests
+
+sourcedir = "."
+
+builddir = "build/test"
+
+depends = base, test, prelude

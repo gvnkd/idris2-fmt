@@ -230,12 +230,12 @@ mutual
     prettyPrec _ (MkRecordDecl n params conName fields) =
       let paramsDoc = hsep (map (\(p, ty) => parens (pretty p <++> colon <++> pretty ty)) params)
           conDoc = case conName of
-                     Nothing => Doc.empty
-                     Just c  => keyword "constructor" <++> pretty c
+                     Nothing => []
+                     Just c  => [keyword "constructor" <++> pretty c]
           base = pretty n <++> keyword "where"
           header = if null params then keyword "record" <++> base
                    else keyword "record" <++> pretty n <++> paramsDoc <++> keyword "where"
-       in header `vappend` indent 2 (vsep (conDoc :: map pretty fields))
+       in header `vappend` indent 2 (vsep (conDoc ++ map pretty fields))
 
   export
   Pretty (AST.InterfaceDecl AST.Name) where

@@ -2,3 +2,4 @@ build/
 *.ttc
 *.ttm
 .direnv/
+tests/**/output

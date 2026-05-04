@@ -1,0 +1,7 @@
+module DoBlocks
+
+foo : IO ()
+foo = do
+  putStrLn "hello"
+  x <- getLine
+  putStrLn x

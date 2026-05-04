@@ -1,0 +1,4 @@
+module Namespace
+namespace Foo where
+  foo : Int -> Int
+  foo x = x

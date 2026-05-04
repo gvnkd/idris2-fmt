@@ -1,0 +1,10 @@
+module Records
+
+record Point where
+  constructor MkPoint
+  x : Int
+  y : Int
+
+record Baz where
+  x : Int
+  y : String
