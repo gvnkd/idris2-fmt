@@ -1,11 +1,15 @@
 # idris2-fmt
 
-A production-ready source code formatter for [Idris 2](https://idris-lang.org/), built on the compiler's own parser and a custom pretty-printing engine with post-processing alignment.
+A production-ready source code formatter for [Idris 2](https://idris-lang.org/), built on the compiler's own parser and a monadic pretty-printing engine with configurable layout rules and post-processing alignment.
 
 ## Features
 
 - **Compiler-native parsing** — Uses Idris 2's built-in parser (`Idris.Parser`), not a custom lexer/parser. This guarantees 100% syntactic compatibility with the language.
-- **Pretty-printing with `prettier`** — Layout engine via `Text.PrettyPrint.Bernardy` (the `prettier` package), with configurable line width and indentation.
+- **Monadic pretty-printing with RWS** — The printer runs in a `Reader-Writer-State` monad carrying layout configuration, precedence, and decision traces. This enables fine-grained control over formatting choices.
+- **Configurable layout rules** — Fourmolu-inspired tunable rules via `FmtConfig`:
+  - `LetStyle`: `Inline` | `Auto` | `Block`
+  - `ArrowStyle`: `Trailing` | `Leading`
+  - `IfStyle`: `Compact` | `Indented`
 - **Post-processing alignment** — After rendering, a string-level alignment pass aligns:
   - Type signature colons (`:`)
   - Function definition equals signs (`=`)
@@ -15,7 +19,7 @@ A production-ready source code formatter for [Idris 2](https://idris-lang.org/),
 - **Where clause support** — Local definitions in `where` blocks are parsed, stored, and printed correctly.
 - **Import sorting** — Imports are sorted alphabetically and deduplicated.
 - **Blank line insertion** — Declarations are separated by blank lines based on source line gaps.
-- **Self-hosting** — The formatter can format its own source code and compile successfully.
+- **Self-hosting** — The formatter can format its own source code and compile successfully (build + 15 tests pass after self-format).
 
 ## Installation
 
@@ -84,10 +88,14 @@ Source Text
 [Idris 2 Parser] --(PDecl)--> [Parser Bridge] --(AST)--> [Transform]
                                                                |
                                                                v
-[Align] <--(String)-- [Render] <--(Doc)-- [Printer] <--(AST)--+
-    |
-    v
-Formatted Text
+[Align] <--(String)-- [Render] <--(Doc)-- [Monadic Printer] <--(AST)--+
+    |                                              ^
+    |                                              | (Config, Traces)
+    |                                              |
+    |                                         [RWS Monad]
+    |                                              |
+    v                                              v
+Formatted Text                             FmtConfig (LetStyle, etc.)
 ```
 
 ### Components
@@ -102,7 +110,11 @@ Formatted Text
 | `IdrisFmt.Config` | Configuration record: `indentWidth`, `lineLength`, `alignRules`. |
 | `IdrisFmt.Comments` | Comment style definitions (`LineComment`, `BlockComment`, `DocComment`) and extraction helpers. |
 | `IdrisFmt.Doc` | Document helpers: `ident`, `keyword`, `operator_`. |
-| `IdrisFmt.CLI` | Argument parsing for `--check`, `--inplace`, `--stdin`, `--indent`, `--width`, `--help`. |
+| `IdrisFmt.CLI` | CLI argument parsing via `optparse-applicative` (flags `--check`, `--inplace`, `--stdin`; options `--indent`, `--width`). |
+| `IdrisFmt.Monad` | `PrinterM = RWS PrintCtx (List Trace) ()` — carries config, precedence, and formatting decision traces. |
+| `IdrisFmt.Printer.Complete` | Full monadic printer covering all AST nodes with configurable layout (let style, arrow style, if style). |
+| `IdrisFmt.Blocks` | Flattens nested `ELet` into `LetBlock` and `EPi` into `PiBlock` for aligned multi-binding output. |
+| `IdrisFmt.Measure` | Measures `Doc` widths and computes aligned padding for block layouts. |
 
 ### AST Design
 
@@ -153,55 +165,56 @@ case xs of
 
 ## Self-Hosting
 
-`idris2-fmt` can format its own source code. After formatting all `src/` files, the project compiles successfully and all 16 tests pass.
+`idris2-fmt` can format its own source code. After formatting all `src/` files, the project compiles successfully and all 15 tests pass (idempotency + convergence on both Reference and Broken test suites).
 
 ```bash
 # Format all source files
-for f in src/IdrisFmt/*.idr src/Main.idr; do
-  ./build/exec/idris2-fmt --inplace "$f"
-done
+find src -name "*.idr" -exec ./build/exec/idris2-fmt --inplace {} +
 
 # Verify compilation
 idris2 --build idris2-fmt.ipkg
 
 # Run tests
-cd tests
-idris2 --build tests.ipkg
-./build/test/exec/runtests $(realpath ../build/exec/idris2-fmt)
+./tests/runtests.sh ./build/exec/idris2-fmt
 ```
 
 ## Testing
 
-The test suite uses the `test` package (Idris 2's built-in test framework) with golden file comparison.
+The test suite verifies two properties for each of 15 test cases:
+
+1. **Idempotency** — Formatting the Reference file twice produces the same output
+2. **Convergence** — Formatting the Broken file produces the same output as the Reference
+
+Each test also verifies that formatted output compiles successfully.
 
 ```bash
 # Run all tests
-nix develop -c run-tests
+./tests/runtests.sh ./build/exec/idris2-fmt
 
-# Or manually:
-cd tests
-idris2 --build tests.ipkg
-./build/test/exec/runtests $(realpath ../build/exec/idris2-fmt)
+# Or via nix
+nix develop -c run-tests
 ```
 
 ### Test coverage
 
-- `simple` — Basic declarations
-- `functions` — Function definitions and clauses
-- `data_types` — `data` declarations with constructors
-- `records` — `record` declarations
-- `interfaces` — `interface` and `implementation`
-- `imports` — Import sorting and deduplication
-- `case` — `case` expressions
-- `do_blocks` — `do` notation
-- `mutual` — `mutual` blocks
-- `parameters` — `parameters` blocks
-- `using` — `using` blocks
-- `namespace` — `namespace` blocks
-- `directives` — `%default`, `%hide`, etc.
-- `builtin` — Built-in function handling
-- `comments` — Line and block comment preservation
-- `doc_comments` — `|||` doc comment preservation
+| Test | Coverage |
+|------|----------|
+| `AsPattern` | `as` patterns (`x@(y :: ys)`) |
+| `CaseExpr` | `case` expressions and guards |
+| `Comments` | Line, block, and doc comments |
+| `DataType` | `data` declarations with constructors |
+| `Expr` | Expressions, operators, literals |
+| `Fixity` | Fixity declarations (`infixl`, etc.) |
+| `Forall` | `forall` quantifiers |
+| `Functions` | Function definitions and clauses |
+| `Gadt` | GADT-style data declarations |
+| `IfThenElse` | `if-then-else` layout |
+| `Implicit` | Implicit arguments and placeholders |
+| `Interface` | `interface` and `implementation` |
+| `Mutual` | `mutual` blocks |
+| `Operators` | Operator sections and precedence |
+| `Record` | `record` declarations |
+| `WhereClause` | `where` blocks |
 
 ## Development
 
@@ -223,6 +236,8 @@ All Idris 2 code follows the type-hole workflow:
 - `where` clauses are supported but very deeply nested `where` blocks may need manual review.
 - Some advanced TTImp constructs (e.g., `PRunElabDecl` bodies) are translated to placeholder comments.
 - Multiline strings are preserved as-is.
+- Record update syntax (`{field := val} rec`) is supported but must be formatted with care in complex expressions.
+- The monadic printer is the default; the pure printer (`IdrisFmt.Printer`) is kept for reference but not actively used.
 
 ## License
 
