@@ -18,7 +18,8 @@ import System.File.Virtual as SFV
 ||| Format a single source string.
 formatSource : CFG.Config -> String -> Either P.ParseError String
 formatSource cfg src =
-  map (A.applyAlignment cfg . PR.printModule cfg . T.transformModule cfg) (P.parseModule src)
+  map (A.applyAlignment cfg . PR.printModule cfg . T.transformModule cfg)
+    (P.parseModule src)
 
 ||| Process a single file: read, format, then write or check.
 ||| Returns True if the file needs formatting (only meaningful in check mode).
@@ -57,21 +58,22 @@ processFile cfg check inplace file = do
 
 ||| Run the formatter with parsed CLI arguments.
 export run : CLI.Args -> IO ()
-run args =
-  if args.stdin
-    then do
-      srcResult <- SFRW.fRead SFV.stdin
-      case srcResult of
-        Left err => putStrLn ("Error reading stdin: " ++ show err)
-        Right src =>
-          case formatSource args.config src of
-            Left err => putStrLn ("Error: " ++ show err)
-            Right out => putStr out
-    else do
-      needsFmt <- traverse (processFile args.config args.check args.inplace) args.files
-      case args.check && any id needsFmt of
-        True => exitFailure
-        False => pure ()
+run args = if args.stdin
+             then do
+               srcResult <- SFRW.fRead SFV.stdin
+               case srcResult of
+                 Left err => putStrLn ("Error reading stdin: " ++ show err)
+                 Right src =>
+                   case formatSource args.config src of
+                     Left err => putStrLn ("Error: " ++ show err)
+                     Right out => putStr out
+             else do
+               needsFmt <-
+                 traverse (processFile args.config args.check args.inplace)
+                   args.files
+               case args.check && any id needsFmt of
+                 True => exitFailure
+                 False => pure ()
 
 %noinline main : IO ()
 main = do

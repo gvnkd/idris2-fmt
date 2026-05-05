@@ -7,6 +7,7 @@ modules = IdrisFmt.AST
         , IdrisFmt.Comments
         , IdrisFmt.Config
         , IdrisFmt.Doc
+        , IdrisFmt.Layout
         , IdrisFmt.Parser
         , IdrisFmt.Printer
         , IdrisFmt.Transform

@@ -16,8 +16,7 @@ findCol needle haystack = go 1 (unpack haystack)
 
 ||| Build a string of N spaces.
 spaces : Nat -> String
-spaces Z = ""
-spaces (S n) = " " ++ spaces n
+spaces n = pack (replicate n ' ')
 
 ||| Maximum of a list of Nats.
 maximumNat : List Nat -> Maybe Nat
@@ -28,9 +27,9 @@ maximumNat (x :: xs) = Just (foldl max x xs)
 hasTokenAtIndent : Nat -> String -> String -> Bool
 hasTokenAtIndent indent token line =
   let leading = length (takeWhile (== ' ') (unpack line))
-  in leading == indent && case findCol token line of
-                            Nothing => False
-                            Just col => col >= S indent
+    in leading == indent && case findCol token line of
+                              Nothing => False
+                              Just col => col >= S indent
 
 ||| Pad spaces after the first word to push token to target column.
 alignLine : String -> String -> Nat -> String
@@ -41,66 +40,68 @@ alignLine token line targetCol =
       if col >= targetCol
         then line
         else let pad = targetCol `minus` col
-             in let n = col `minus` 1
-                in let (before, after) = strSplitAt n line
-                   in before ++ spaces pad ++ after
+               in let n = col `minus` 1
+                    in let (before, after) = strSplitAt n line
+                         in before ++ spaces pad ++ after
   where
     strSplitAt : Nat -> String -> (String, String)
     strSplitAt n s = let bs = take n (unpack s)
-                     in let as = drop n (unpack s)
-                        in (pack bs, pack as)
+                       in let as = drop n (unpack s) in (pack bs, pack as)
 
 ||| Align a single block of lines on the given token.
 alignBlock : String -> List String -> List String
 alignBlock token lines =
   let cols = mapMaybe (findCol token) lines
-  in case maximumNat cols of
-       Nothing => lines
-       Just targetCol => map (\l => alignLine token l targetCol) lines
+    in case maximumNat cols of
+         Nothing => lines
+         Just targetCol => map (\l => alignLine token l targetCol) lines
 
 ||| Group consecutive lines that contain the token at the same indentation.
 groupBlocks : Nat -> String -> List String -> List (List String)
 groupBlocks _ _ [] = []
 groupBlocks minIndent token (l :: ls) =
   let indent = length (takeWhile (== ' ') (unpack l))
-  in if indent >= minIndent
-       then case findCol token l of
-              Nothing => groupBlocks minIndent token ls
-              Just col =>
-                if col >= S indent
-                  then let (block, rest) = span (hasTokenAtIndent indent token) (l :: ls)
-                       in block :: groupBlocks minIndent token rest
-                  else groupBlocks minIndent token ls
-       else groupBlocks minIndent token ls
-
-||| Get the first element of a non-empty list.
-first : List String -> String
-first [] = ""
-first (x :: _) = x
+    in if indent >= minIndent
+         then case findCol token l of
+                Nothing => groupBlocks minIndent token ls
+                Just col =>
+                  if col >= S indent
+                    then let (block, rest) = span
+                                               (hasTokenAtIndent indent token)
+                                               (l :: ls)
+                           in block :: groupBlocks minIndent token rest
+                    else groupBlocks minIndent token ls
+         else groupBlocks minIndent token ls
 
 ||| Apply alignment for one token type.
 alignToken : Nat -> String -> String -> String
 alignToken minIndent token src =
   let lines_ = lines src
-  in let blocks = groupBlocks minIndent token lines_
-     in let aligned = map (alignBlock token) blocks
-        in let merged = mergeBlocks lines_ aligned
-           in unlines merged
+    in let blocks = groupBlocks minIndent token lines_
+         in let aligned = map (alignBlock token) blocks
+              in let merged = mergeBlocks lines_ aligned in unlines merged
   where
     mergeBlocks : List String -> List (List String) -> List String
     mergeBlocks [] _ = []
     mergeBlocks xs [] = xs
     mergeBlocks (x :: xs) (b :: bs) =
-      if x == first b
-        then b ++ mergeBlocks (drop (length b) (x :: xs)) bs
-        else x :: mergeBlocks xs (b :: bs)
+      case b of
+        (y :: _) =>
+          if x == y
+            then b ++ mergeBlocks (drop (length b) (x :: xs)) bs
+            else x :: mergeBlocks xs (b :: bs)
+        [] => x :: mergeBlocks xs (b :: bs)
     mergeBlocks xs _ = xs
 
 ||| Post-process rendered output to apply alignment rules.
 export applyAlignment : CFG.Config -> String -> String
 applyAlignment cfg src =
   let rules = cfg.alignRules
-  in applySteps rules.alignCaseArrows " => " $ applySteps rules.alignTypeSigs " : " $ applySteps rules.alignFunctionDefs " = " $ applySteps rules.alignRecordFields " : " src
+    in applySteps rules.alignCaseArrows
+         " => " $ applySteps rules.alignTypeSigs
+                    " : " $ applySteps rules.alignFunctionDefs
+                              " = " $ applySteps rules.alignRecordFields " : "
+                                        src
   where
     applySteps : Bool -> String -> String -> String
     applySteps True tok s = alignToken cfg.indentWidth tok s

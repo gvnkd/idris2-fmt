@@ -5,5 +5,6 @@ module Reference
 interface Showable a where
   showIt : a -> String
 
-export implementation Showable Int where
-         showIt n = show n
+export
+implementation Showable Int where
+  showIt n = show n
