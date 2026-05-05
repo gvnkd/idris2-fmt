@@ -169,7 +169,7 @@ paramDoc (n, Nothing) = pretty n
 paramDoc (n, Just ty) = pretty n <++> colon <++> pretty ty
 usingDoc (Nothing, ty) = pretty ty
 usingDoc (Just n, ty) = pretty n <++> colon <++> pretty ty
-conNameDoc n = if isOperatorName n then parens (pretty n) else pretty n
+conNameDoc n = pretty n
 branchDoc kw (EDo _ stmts) =
   hangSep' 2 (kw <++> keyword "do") (vsep (map pretty stmts))
 branchDoc kw (EIf c t f) = kw `vappend` indent 2 (pretty (EIf c t f))
@@ -199,7 +199,10 @@ implDeclDoc mn interfaceName params mbody =
          in case mbody of
               Nothing => header
               Just _ => hangSep' 2 header (keyword "where")
-prettyName _ (AST.UN s) = D.ident s
+prettyName _ (AST.UN s) =
+  if isOperatorName (AST.UN s)
+    then parens (D.ident s)
+    else D.ident s
 prettyName _ (AST.MN s i) = D.ident (s ++ "_" ++ show i)
 prettyName _ (AST.NS ns n) =
   D.ident (concat (L.intersperse "." (reverse ns)) ++ ".") <+> pretty n
