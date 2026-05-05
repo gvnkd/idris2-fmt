@@ -7,4 +7,5 @@ interface Showable a where
 
 export
 implementation Showable Int where
-  showIt n = show n
+  showIt n =
+    show n

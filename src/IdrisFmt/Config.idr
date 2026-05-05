@@ -17,7 +17,8 @@ record AlignRules where
 -- align : in record fields
 -- align values in multi-line lists
 export defaultAlignRules : AlignRules
-defaultAlignRules = MkAlignRules True True True True False
+defaultAlignRules =
+  MkAlignRules True True True True False
 
 ||| Central formatter configuration.
 public export
@@ -28,4 +29,5 @@ record Config where
   alignRules : AlignRules
 
 export defaultConfig : Config
-defaultConfig = MkConfig 2 80 defaultAlignRules
+defaultConfig =
+  MkConfig 2 80 defaultAlignRules

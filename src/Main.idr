@@ -25,7 +25,8 @@ formatSource cfg src =
 ||| Returns True if the file needs formatting (only meaningful in check mode).
 processFile : CFG.Config -> Bool -> Bool -> String -> IO Bool
 processFile cfg check inplace file = do
-  srcResult <- SFRW.readFile file
+  srcResult <-
+    SFRW.readFile file
   case srcResult of
     Left err => do
       putStrLn ("Error reading " ++ file ++ ": " ++ show err)
@@ -46,38 +47,49 @@ processFile cfg check inplace file = do
             else
               if inplace
                 then do
-                  writeResult <- SFRW.writeFile file output
+                  writeResult <-
+                    SFRW.writeFile file output
                   case writeResult of
                     Left err => do
                       putStrLn ("Error writing " ++ file ++ ": " ++ show err)
                       pure False
-                    Right () => pure False
+                    Right () =>
+                      pure False
                 else do
                   putStr output
                   pure False
 
 ||| Run the formatter with parsed CLI arguments.
 export run : CLI.Args -> IO ()
-run args = if args.stdin
-             then do
-               srcResult <- SFRW.fRead SFV.stdin
-               case srcResult of
-                 Left err => putStrLn ("Error reading stdin: " ++ show err)
-                 Right src =>
-                   case formatSource args.config src of
-                     Left err => putStrLn ("Error: " ++ show err)
-                     Right out => putStr out
-             else do
-               needsFmt <-
-                 traverse (processFile args.config args.check args.inplace)
-                   args.files
-               case args.check && any id needsFmt of
-                 True => exitFailure
-                 False => pure ()
+run args =
+  if args.stdin
+    then do
+      srcResult <-
+        SFRW.fRead SFV.stdin
+      case srcResult of
+        Left err =>
+          putStrLn ("Error reading stdin: " ++ show err)
+        Right src =>
+          case formatSource args.config src of
+            Left err =>
+              putStrLn ("Error: " ++ show err)
+            Right out =>
+              putStr out
+    else do
+      needsFmt <-
+        traverse (processFile args.config args.check args.inplace) args.files
+      case args.check && any id needsFmt of
+        True =>
+          exitFailure
+        False =>
+          pure ()
 
 %noinline main : IO ()
 main = do
-  args <- getArgs
+  args <-
+    getArgs
   case CLI.parseArgs args of
-    Nothing => putStrLn CLI.showUsage
-    Just parsed => run parsed
+    Nothing =>
+      putStrLn CLI.showUsage
+    Just parsed =>
+      run parsed

@@ -4,7 +4,7 @@ import Data.List
 %default total
 
 neg : Int -> Int
-neg x = -x
+neg x = - x
 
 section : List Int -> List Int
 section xs = filter (> 0) xs

@@ -14,16 +14,23 @@ data Name : Type where
 
 export
 implementation Eq Name where
-  (UN x) == (UN y) = x == y
-  (MN x i) == (MN y j) = x == y && i == j
-  (NS xs x) == (NS ys y) = xs == ys && x == y
-  _ == _ = False
+  (UN x) == (UN y) =
+    x == y
+  (MN x i) == (MN y j) =
+    x == y && i == j
+  (NS xs x) == (NS ys y) =
+    xs == ys && x == y
+  _ == _ =
+    False
 
 export
 implementation Show Name where
-  show (UN s) = s
-  show (MN s i) = s ++ "_" ++ show i
-  show (NS ns n) = concat (intersperse "." (reverse ns)) ++ "." ++ show n
+  show (UN s) =
+    s
+  show (MN s i) =
+    s ++ "_" ++ show i
+  show (NS ns n) =
+    concat (intersperse "." (reverse ns)) ++ "." ++ show n
 
 ||| Multiplicity annotation (Quantitative Type Theory).
 public export
