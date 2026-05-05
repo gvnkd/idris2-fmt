@@ -1,6 +1,16 @@
 # idris2-fmt Style Guide
 
-This document describes the formatting rules enforced by `idris2-fmt` and how to configure them.
+This document describes the formatting rules enforced by `idris2-fmt`. The formatter is the single source of truth for style — run it on your code and the output is correct by definition.
+
+## Usage
+
+```bash
+# Format in place
+idris2-fmt --inplace MyModule.idr
+
+# Check formatting (CI)
+idris2-fmt --check MyModule.idr
+```
 
 ## Global Options
 
@@ -8,6 +18,61 @@ This document describes the formatting rules enforced by `idris2-fmt` and how to
 |------|---------|-------------|
 | `--indent N` | `2` | Number of spaces per indentation level |
 | `--width N` | `80` | Target line length for layout engine |
+
+## Layout Rules
+
+The monadic printer (`IdrisFmt.Printer.Complete`) uses a configurable RWS monad to decide layout. Current tunable rules:
+
+| Rule | Options | Default | Description |
+|------|---------|---------|-------------|
+| `LetStyle` | `Inline` \| `Auto` \| `Block` | `Auto` | Multi-binding `let` layout |
+| `ArrowStyle` | `Trailing` \| `Leading` | `Trailing` | Function arrows in type signatures |
+| `IfStyle` | `Compact` \| `Indented` | `Compact` | `if-then-else` layout |
+
+### Let Styles
+
+**Inline** (single binding, one line):
+```idris
+foo = let x = 1 in x + 1
+```
+
+**Block** (multiple bindings, aligned):
+```idris
+foo =
+  let
+    x = 1
+    y = 2
+  in x + y
+```
+
+### Arrow Styles
+
+**Trailing** (arrow at end of line):
+```idris
+foo : Int -> String -> Bool
+```
+
+**Leading** (arrow on continuation line):
+```idris
+foo : Int
+  -> String
+  -> Bool
+```
+
+### If Styles
+
+**Compact** (horizontal if it fits, vertical otherwise):
+```idris
+foo x = if x > 0 then "pos" else "non-pos"
+```
+
+**Indented** (always vertical):
+```idris
+foo x =
+  if x > 0
+    then "pos"
+    else "non-pos"
+```
 
 ## Alignment Rules
 
@@ -60,3 +125,7 @@ The layout engine uses `prettier` (`Text.PrettyPrint.Bernardy`) with the configu
 | `--check` | Read file, format, and report if output differs from input. Exit code 0 if already formatted. |
 | `--inplace` | Overwrite files with formatted output. |
 | `--stdin` | Read source from stdin and write formatted output to stdout. |
+
+---
+
+*This style guide is enforced automatically by `idris2-fmt`. Do not manually adjust formatting — run the tool instead.*
