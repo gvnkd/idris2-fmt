@@ -3,9 +3,11 @@ import Data.List as L
 import Data.String as S
 import IdrisFmt.AST as AST
 import IdrisFmt.Align as Align
+import IdrisFmt.Blocks as Blocks
 import IdrisFmt.Comments as C
 import IdrisFmt.Config as CFG
 import IdrisFmt.Doc as D
+import IdrisFmt.Measure as Measure
 import Text.PrettyPrint.Bernardy.Combinators
 import Text.PrettyPrint.Bernardy.Interface
 
@@ -275,33 +277,91 @@ isHeavy (EOp _ _ r) =
   isHeavy r
 isHeavy _ =
   False
+
+-- Block-aware pretty-printing helpers for let/pi alignment
+prettyParamDoc : {opts : _} -> AST.RigCount -> AST.PiInfo (AST.Expr AST.Name) -> Maybe AST.Name -> AST.Expr AST.Name -> Doc opts
+prettyParamDoc rig Explicit (Just n) arg =
+  parens (prettyRig rig <+> pretty n <++> colon <++> pretty arg)
+prettyParamDoc rig Implicit (Just n) arg =
+  braces (prettyRig rig <+> pretty n <++> colon <++> pretty arg)
+prettyParamDoc rig AutoImplicit (Just n) arg =
+  braces (keyword "auto" <++> prettyRig rig <+> pretty n <++> colon <++> pretty arg)
+prettyParamDoc _ _ (Just n) arg =
+  parens (pretty n <++> colon <++> pretty arg)
+prettyParamDoc _ _ Nothing arg =
+  pretty arg
+
+prettySinglePi : {opts : _} -> Prec -> List (AST.RigCount, AST.PiInfo (AST.Expr AST.Name), Maybe AST.Name, AST.Expr AST.Name) -> AST.Expr AST.Name -> Doc opts
+prettySinglePi d [(rig, info, n, arg)] res =
+  parenthesise (d > Open) $
+    hangSep' 2 (prettyParamDoc rig info n arg) (line "->" <++> pretty res)
+prettySinglePi _ _ res =
+  pretty res
+
+piParamDocs : {opts : _} -> List (AST.RigCount, AST.PiInfo (AST.Expr AST.Name), Maybe AST.Name, AST.Expr AST.Name) -> List (Doc opts)
+piParamDocs [] = []
+piParamDocs ((rig, info, n, arg) :: rest) =
+  prettyParamDoc rig info n arg :: piParamDocs rest
+
+piAlignedParams : {opts : _} -> Nat -> List (Doc opts) -> List (Doc opts)
+piAlignedParams _ [] = []
+piAlignedParams w (p :: rest) =
+  (Measure.padTo w p <++> line "->") :: piAlignedParams w rest
+
+prettyPiBlock : {opts : _} -> Prec -> List (AST.RigCount, AST.PiInfo (AST.Expr AST.Name), Maybe AST.Name, AST.Expr AST.Name) -> AST.Expr AST.Name -> Doc opts
+prettyPiBlock d ps res =
+  let paramDocs : List (Doc opts) = piParamDocs ps
+      maxParamW = Measure.maxWidth (map Measure.measureWidth paramDocs)
+      alignedParams : List (Doc opts) = piAlignedParams maxParamW paramDocs
+      vert = case paramDocs of
+               [] => pretty res
+               (p :: rest) => vsep (p :: map (\q => line "-> " <+> q) (rest ++ [pretty res]))
+      horiz = hsep (intersperse (line "->") (paramDocs ++ [pretty res]))
+   in parenthesise (d > Open) $ horiz <|> vert
+
+prettySingleLet : {opts : _} -> Prec -> AST.RigCount -> AST.Expr AST.Name -> AST.Expr AST.Name -> AST.Expr AST.Name -> AST.Expr AST.Name -> Doc opts
+prettySingleLet d rig pat ty val scope =
+  parenthesise (d > Open) $
+    hangSep' 2
+      (keyword "let" <++> binderDoc rig pat ty <++> equals <++> pretty val)
+      (keyword "in" <++> pretty scope)
+
+letBindDocs : {opts : _} -> List (AST.RigCount, AST.Expr AST.Name, AST.Expr AST.Name, AST.Expr AST.Name) -> List (Doc opts)
+letBindDocs [] = []
+letBindDocs ((rig, pat, ty, val) :: rest) =
+  (binderDoc rig pat ty <++> equals <++> pretty val) :: letBindDocs rest
+
+letPatDocs : {opts : _} -> List (AST.RigCount, AST.Expr AST.Name, AST.Expr AST.Name, AST.Expr AST.Name) -> List (Doc opts)
+letPatDocs [] = []
+letPatDocs ((rig, pat, ty, _) :: rest) =
+  (binderDoc rig pat ty) :: letPatDocs rest
+
+letAlignedBinds : {opts : _} -> Nat -> List (AST.RigCount, AST.Expr AST.Name, AST.Expr AST.Name, AST.Expr AST.Name) -> List (Doc opts)
+letAlignedBinds _ [] = []
+letAlignedBinds w ((rig, pat, ty, val) :: rest) =
+  (Measure.padTo w (binderDoc rig pat ty) <++> equals <++> pretty val) :: letAlignedBinds w rest
+
+prettyLetBlock : {opts : _} -> Prec -> List (AST.RigCount, AST.Expr AST.Name, AST.Expr AST.Name, AST.Expr AST.Name) -> AST.Expr AST.Name -> Doc opts
+prettyLetBlock d bs sc =
+  let bindDocs : List (Doc opts) = letBindDocs bs
+      patDocs : List (Doc opts) = letPatDocs bs
+      maxPatW = Measure.maxWidth (map Measure.measureWidth patDocs)
+      alignedBinds : List (Doc opts) = letAlignedBinds maxPatW bs
+      letKw = keyword "let"
+      inKw = keyword "in"
+      vert = (letKw `vappend` indent 2 (vsep alignedBinds)) `vappend` (inKw <++> pretty sc)
+   in parenthesise (d > Open) $ vert
+
 prettyExpr _ (ERef n) =
   pretty n
-prettyExpr d (EPi rig Explicit (Just n) arg ret) =
-  parenthesise
-    (d > Open) $ hangSep' 2
-                   (parens
-                      (prettyRig rig <+> pretty n <++> colon <++> pretty arg))
-                   (line "->" <++> pretty ret)
-prettyExpr d (EPi rig Implicit (Just n) arg ret) =
-  parenthesise
-    (d > Open) $ hangSep' 2
-                   (braces
-                      (prettyRig rig <+> pretty n <++> colon <++> pretty arg))
-                   (line "->" <++> pretty ret)
-prettyExpr d (EPi rig AutoImplicit (Just n) arg ret) =
-  parenthesise
-    (d > Open) $ hangSep' 2
-                   (braces
-                      (keyword
-                         "auto" <++> prettyRig
-                                       rig <+> pretty
-                                                 n <++> colon <++> pretty arg))
-                   (line "->" <++> pretty ret)
-prettyExpr d (EPi rig Explicit Nothing arg ret) =
-  parenthesise (d > Open) $ hangSep' 2 (pretty arg) (line "->" <++> pretty ret)
-prettyExpr d (EPi _ _ _ arg ret) =
-  parenthesise (d > Open) $ hangSep' 2 (pretty arg) (line "->" <++> pretty ret)
+prettyExpr d e@(EPi _ _ _ _ _) =
+  case Blocks.flattenEPi e of
+    Just (MkPiBlock ps res) =>
+      if length ps == 1
+        then prettySinglePi d ps res
+        else prettyPiBlock d ps res
+    Nothing =>
+      pretty e
 prettyExpr d (EForall ns scope) =
   parenthesise
     (d > Open) $ hangSep' 2
@@ -318,11 +378,13 @@ prettyExpr d (ELam rig _ pat ty scope) =
     (d > Open) $ hangSep' 2 (line "\\" <+> binderDoc rig pat ty <++> line "=>")
                    (pretty scope)
 prettyExpr d (ELet rig pat ty val scope _) =
-  parenthesise
-    (d > Open) $ hangSep' 2
-                   (keyword "let" <++> binderDoc rig pat
-                                         ty <++> equals <++> pretty val)
-                   (keyword "in" <++> pretty scope)
+  case Blocks.flattenELet (ELet rig pat ty val scope []) of
+    Just (MkLetBlock bs sc, _) =>
+      if length bs == 1
+        then prettySingleLet d rig pat ty val sc
+        else prettyLetBlock d bs sc
+    Nothing =>
+      prettySingleLet d rig pat ty val scope
 prettyExpr d (EApp f (EDo _ stmts)) =
   parenthesise (d >= App) $ hangSep' 2 (prettyPrec Open f <++> keyword "do")
                               (vsep (map pretty stmts))
@@ -391,11 +453,9 @@ prettyExpr _ (EUnquote x) =
 prettyExpr _ (EPrim c) =
   pretty c
 prettyExpr d (EOp l op r) =
-  parenthesise (d >= App)
-  $
-    if isHeavy r
-      then vsep [prettyPrec Open l, pretty op, indent 2 (prettyPrec Open r)]
-      else prettyPrec Open l <++> pretty op <++> prettyPrec Open r
+  let horiz = prettyPrec Open l <++> pretty op <++> prettyPrec Open r
+      vert = vsep [prettyPrec Open l, pretty op, indent 2 (prettyPrec Open r)]
+   in parenthesise (d >= App) $ ifMultiline horiz vert
 prettyExpr _ (EPrefixOp op x) =
   pretty op <++> pretty x
 prettyExpr _ (ESectionL op x) =

@@ -4,10 +4,12 @@ authors = "Rune"
 sourcedir = "src"
 modules = IdrisFmt.AST
         , IdrisFmt.Align
+        , IdrisFmt.Blocks
         , IdrisFmt.Comments
         , IdrisFmt.Config
         , IdrisFmt.Doc
         , IdrisFmt.Layout
+        , IdrisFmt.Measure
         , IdrisFmt.Parser
         , IdrisFmt.Printer
         , IdrisFmt.Transform
