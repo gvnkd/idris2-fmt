@@ -233,6 +233,11 @@ mutual
     AST.ELam (translateRig rig) (translatePiInfo pii) (translatePTerm pat)
       (translatePTerm ty)
       (translatePTerm scope)
+  translatePTerm (PApp _ (PUpdate _ fs) rec) =
+    let fields = map (\fu => case fu of
+                               PSetField path v => (path, translatePTerm v)
+                               PSetFieldApp path v => (path, translatePTerm v)) fs
+     in AST.ERecordUpdate (translatePTerm rec) fields
   translatePTerm (PApp _ f x) =
     AST.EApp (translatePTerm f) (translatePTerm x)
   translatePTerm (PWithApp _ f x) =

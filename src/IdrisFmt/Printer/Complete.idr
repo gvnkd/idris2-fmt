@@ -207,20 +207,17 @@ mutual
     scopeDoc <- prettyExprM scope
     pure (keyword "let" <++> patDoc <++> equals <++> valDoc <++> keyword "in" <++> scopeDoc)
 
-  prettyBlockLetM : {layoutOpts : _} -> AST.RigCount -> AST.Expr AST.Name -> AST.Expr AST.Name -> AST.Expr AST.Name -> AST.Expr AST.Name -> PrinterM (Doc layoutOpts)
-  prettyBlockLetM rig pat ty val scope = do
-    case Blocks.flattenELet (ELet rig pat ty val scope []) of
-      Just (MkLetBlock bs sc, _) => do
-        bindDocs <- traverse (\(r, p, t, v) => do
-          pDoc <- prettyExprM p
-          vDoc <- prettyExprM v
-          pure (pDoc <++> equals <++> vDoc)) bs
-        scDoc <- prettyExprM sc
-        let letKw = keyword "let"
-            inKw = keyword "in"
-            body = vsep (map (indent 2) bindDocs)
-        pure ((letKw `vappend` body) `vappend` (inKw <++> scDoc))
-      Nothing => prettyInlineLetM rig pat ty val scope
+  prettyBlockLetM : {layoutOpts : _} -> List (AST.RigCount, (AST.Expr AST.Name, (AST.Expr AST.Name, AST.Expr AST.Name))) -> AST.Expr AST.Name -> PrinterM (Doc layoutOpts)
+  prettyBlockLetM bs sc = do
+    bindDocs <- traverse (\(r, p, t, v) => do
+      pDoc <- prettyExprM p
+      vDoc <- prettyExprM v
+      pure (pDoc <++> equals <++> vDoc)) bs
+    scDoc <- prettyExprM sc
+    let letKw = keyword "let"
+        inKw = keyword "in"
+        body = vsep (map (indent 2) bindDocs)
+    pure ((letKw `vappend` body) `vappend` (inKw <++> scDoc))
 
   prettyAutoLetM : {layoutOpts : _} -> AST.RigCount -> AST.Expr AST.Name -> AST.Expr AST.Name -> AST.Expr AST.Name -> AST.Expr AST.Name -> PrinterM (Doc layoutOpts)
   prettyAutoLetM rig pat ty val scope =
@@ -228,7 +225,7 @@ mutual
       Just (MkLetBlock bs sc, _) =>
         if length bs == 1
           then prettyInlineLetM rig pat ty val sc
-          else prettyBlockLetM rig pat ty val sc
+          else prettyBlockLetM bs sc
       Nothing => prettyInlineLetM rig pat ty val scope
 
   -- Pi formatting variants
@@ -315,7 +312,10 @@ mutual
     case fmtCfg of
       Inline => prettyInlineLetM rig pat ty val scope
       Auto   => prettyAutoLetM rig pat ty val scope
-      Block  => prettyBlockLetM rig pat ty val scope
+      Block  =>
+        case Blocks.flattenELet (ELet rig pat ty val scope []) of
+          Just (MkLetBlock bs sc, _) => prettyBlockLetM bs sc
+          Nothing => prettyInlineLetM rig pat ty val scope
 
   prettyExprM (EApp f (EDo _ stmts)) = do
     d <- getPrec
@@ -469,6 +469,13 @@ mutual
     cDoc <- prettyCommentM c
     xDoc <- prettyExprM x
     pure (cDoc `vappend` xDoc)
+
+  prettyExprM (ERecordUpdate rec fields) = do
+    recDoc <- prettyExprM rec
+    fieldDocs <- traverse (\(path, val) => do
+      valDoc <- prettyExprM val
+      pure (line (concat (intersperse "." path)) <++> text ":=" <++> valDoc)) fields
+    pure (braces (hsep (intersperse (line ",") fieldDocs)) <++> recDoc)
 
   -- Helper for binder docs
   binderDocM : {layoutOpts : _} -> AST.RigCount -> AST.Expr AST.Name -> AST.Expr AST.Name -> PrinterM (Doc layoutOpts)

@@ -563,6 +563,9 @@ prettyExpr _ (EDotted x) =
   line "." <+> pretty x
 prettyExpr _ (EComment c x) =
   pretty c `vappend` pretty x
+prettyExpr _ (ERecordUpdate rec fields) =
+  let fieldDocs = map (\(path, val) => line (concat (intersperse "." path)) <++> text ":=" <++> pretty val) fields
+   in braces (hsep (intersperse (line ",") fieldDocs)) <++> pretty rec
 prettyDecl _ (DModule name _) =
   keyword "module" <++> line name
 prettyDecl _ (DImport imp) =
