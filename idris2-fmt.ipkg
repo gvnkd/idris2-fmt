@@ -13,6 +13,7 @@ modules = IdrisFmt.AST
         , IdrisFmt.Monad
         , IdrisFmt.Printer.Monadic
         , IdrisFmt.Printer.Configurable
+        , IdrisFmt.Printer.Complete
         , IdrisFmt.Parser
         , IdrisFmt.Printer
         , IdrisFmt.Transform

@@ -8,6 +8,7 @@ import IdrisFmt.Config as CFG
 import IdrisFmt.Doc as D
 import IdrisFmt.Parser as P
 import IdrisFmt.Printer as PR
+import IdrisFmt.Printer.Complete as PRM
 import IdrisFmt.Transform as T
 import System
 import System.File.ReadWrite as SFRW
@@ -15,10 +16,14 @@ import System.File.Virtual as SFV
 
 %default covering
 
+||| Convert base config to formatter config.
+mkFmtConfig : CFG.Config -> PRM.FmtConfig
+mkFmtConfig cfg = PRM.MkFmtConfig cfg PRM.Auto PRM.Trailing PRM.Compact
+
 ||| Format a single source string.
 formatSource : CFG.Config -> String -> Either P.ParseError String
 formatSource cfg src =
-  map (A.applyAlignment cfg . PR.printModule cfg . T.transformModule cfg)
+  map (PRM.printModuleM (mkFmtConfig cfg) . T.transformModule cfg)
     (P.parseModule src)
 
 ||| Process a single file: read, format, then write or check.
