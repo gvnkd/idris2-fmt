@@ -264,13 +264,17 @@ prettyName _ (AST.MN s i) =
   D.ident (s ++ "_" ++ show i)
 prettyName _ (AST.NS ns n) =
   D.ident (concat (L.intersperse "." (reverse ns)) ++ ".") <+> pretty n
+
 ||| Check if an expression is "heavy" (if/case) and should start on its own line.
 isHeavy : AST.Expr AST.Name -> Bool
-isHeavy (EIf _ _ _) = True
-isHeavy (ECase _ _) = True
-isHeavy (EOp _ _ r) = isHeavy r
-isHeavy _ = False
-
+isHeavy (EIf _ _ _) =
+  True
+isHeavy (ECase _ _) =
+  True
+isHeavy (EOp _ _ r) =
+  isHeavy r
+isHeavy _ =
+  False
 prettyExpr _ (ERef n) =
   pretty n
 prettyExpr d (EPi rig Explicit (Just n) arg ret) =
@@ -387,7 +391,8 @@ prettyExpr _ (EUnquote x) =
 prettyExpr _ (EPrim c) =
   pretty c
 prettyExpr d (EOp l op r) =
-  parenthesise (d >= App) $
+  parenthesise (d >= App)
+  $
     if isHeavy r
       then vsep [prettyPrec Open l, pretty op, indent 2 (prettyPrec Open r)]
       else prettyPrec Open l <++> pretty op <++> prettyPrec Open r

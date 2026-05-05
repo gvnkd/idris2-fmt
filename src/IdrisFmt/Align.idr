@@ -32,11 +32,15 @@ maximumNat (x :: xs) =
 hasTokenAtIndent : Nat -> String -> String -> Bool
 hasTokenAtIndent indent token line =
   let leading = length (takeWhile (== ' ') (unpack line))
-    in leading == indent && case findCol token line of
-                              Nothing =>
-                                False
-                              Just col =>
-                                col >= S indent
+    in leading
+       ==
+         indent
+         &&
+           case findCol token line of
+             Nothing =>
+               False
+             Just col =>
+               col >= S indent
 
 ||| Pad spaces after the first word to push token to target column.
 alignLine : String -> String -> Nat -> String
