@@ -188,33 +188,17 @@ importDoc reexport name alias =
                           Nothing => []
                           Just a => [keyword "as" <++> line a]
               in hsep ([keyword "import"] ++ pub ++ [modName] ++ asDoc)
-implDeclDoc Nothing interfaceName params Nothing =
-  keyword
-    "implementation" <++> pretty interfaceName <++> hsep (map pretty params)
-implDeclDoc (Just n) interfaceName params Nothing =
-  keyword
-    "implementation" <++> pretty
-                            n <++> equals <++> pretty
-                                                 interfaceName <++> hsep
-                                                                      (map
-                                                                         pretty
-                                                                         params)
-implDeclDoc Nothing interfaceName params (Just ds) =
-  keyword
-    "implementation" <++> pretty
-                            interfaceName <++> hsep
-                                                 (map pretty
-                                                    params) <++> keyword
-                                                                     "where"
-implDeclDoc (Just n) interfaceName params (Just ds) =
-  keyword
-    "implementation" <++> pretty
-                            n <++> equals <++> pretty
-                                                 interfaceName <++> hsep
-                                                                      (map
-                                                                         pretty
-                                                                         params) <++> keyword
-                                                                                        "where"
+implDeclDoc mn interfaceName params mbody =
+  let nameDoc : List (Doc opts) = case mn of
+                                    Nothing => []
+                                    Just n => [pretty n, equals]
+    in let header = hsep
+                      (keyword
+                         "implementation" :: nameDoc ++ [ pretty interfaceName
+                                                        ] ++ map pretty params)
+         in case mbody of
+              Nothing => header
+              Just _ => hangSep' 2 header (keyword "where")
 prettyName _ (AST.UN s) = D.ident s
 prettyName _ (AST.MN s i) = D.ident (s ++ "_" ++ show i)
 prettyName _ (AST.NS ns n) =
@@ -282,15 +266,10 @@ prettyExpr _ (ECase scrut alts) =
                                     "of" `vappend` indent 2
                                                      (vsep (map pretty alts))
 prettyExpr _ (ELocal decls scope) =
-  (keyword
-     "let" <++> keyword
-                  "where" `vappend` indent 2
-                                      (vsep
-                                         (map
-                                            pretty
-                                            decls))) `vappend` (keyword
-                                                                   "in" <++> pretty
-                                                                               scope)
+  let declsDoc = vsep (map pretty decls)
+    in (keyword "let" `vappend` indent 2
+                                  declsDoc) `vappend` (keyword
+                                                         "in" <++> pretty scope)
 prettyExpr _ (EList xs) = list (map pretty xs)
 prettyExpr _ (ESnocList xs) = snocList (map pretty (xs <>> []))
 prettyExpr _ (EPair x y) =
@@ -304,10 +283,9 @@ prettyExpr _ (EIf c t f) =
     in let thenBranch = branchDoc (keyword "then") t
          in let elseBranch = branchDoc (keyword "else") f
               in let horizontal = cond <++> thenBranch <++> elseBranch
-                   in let vertical = (cond `vappend` indent 2
-                                                       thenBranch) `vappend` indent 2
-                                                                               elseBranch
-                        in ifMultiline horizontal vertical
+                   in let thenDoc = cond `vappend` indent 2 thenBranch
+                        in let vertical = thenDoc `vappend` indent 2 elseBranch
+                             in ifMultiline horizontal vertical
 prettyExpr _ (EHole s) = line "?" <+> line s
 prettyExpr _ EType = keyword "Type"
 prettyExpr _ EUnit = line "()"
@@ -390,17 +368,11 @@ prettyDecl _ (DNamespace ns decls) =
 prettyDecl _ (DMutual decls) =
   keyword "mutual" `vappend` indent 2 (vsep (map pretty decls))
 prettyDecl _ (DParams params decls) =
-  keyword
-    "parameters" <++> parens
-                        (hsep
-                           (map
-                              paramDoc
-                              params)) <++> keyword
-                                                "where" `vappend` indent 2
-                                                                    (vsep
-                                                                       (map
-                                                                          pretty
-                                                                          decls))
+  let header = keyword "parameters" <++> parens (hsep (map paramDoc params))
+    in header `vappend` indent 2
+                          (keyword
+                             "where" `vappend` indent 2
+                                                 (vsep (map pretty decls)))
 prettyDecl _ (DUsing usings decls) =
   keyword
     "using" <++> parens
@@ -478,35 +450,34 @@ prettyConDecl _ (MkConDecl n ty) = conNameDoc n <++> colon <++> pretty ty
 prettyFieldDecl _ (MkFieldDecl n ty) = pretty n <++> colon <++> pretty ty
 prettyDataDecl _ (MkDataDecl n params ty cons) =
   let paramsDoc = hsep
-                    (map (\(p, t) => parens (pretty p <++> colon <++> pretty t))
+                    (map
+                       (\(p, t) => parens (pretty p <++> colon <++> pretty t))
                        params)
     in let base = pretty n <++> colon <++> pretty ty <++> keyword "where"
          in if null params
               then keyword "data" <++> base
-              else keyword
-                     "data" <++> pretty
-                                   n <++> paramsDoc <++> colon <++> pretty
-                                                                      ty <++> keyword
-                                                                                "where"
+              else hsep
+                     [ keyword "data"
+                     , pretty n
+                     , paramsDoc
+                     , colon
+                     , pretty ty
+                     , keyword "where"
+                     ]
 prettyRecordDecl _ (MkRecordDecl n params conName fields) =
   let paramsDoc = hsep
                     (map
                        (\(p, ty) =>
                           parens (pretty p <++> colon <++> pretty ty))
                        params)
-    in let base = pretty n <++> keyword "where"
-         in if null params
-              then keyword "record" <++> base
-              else keyword
-                     "record" <++> pretty n <++> paramsDoc <++> keyword "where"
+    in if null params
+         then keyword "record" <++> pretty n <++> keyword "where"
+         else hsep [keyword "record", pretty n, paramsDoc, keyword "where"]
 prettyInterfaceDecl _ (MkInterfaceDecl n params _ methods) =
   let paramsDoc = hsep (map interfaceParamDoc params)
-    in let base = pretty n <++> keyword "where"
-         in if null params
-              then keyword "interface" <++> base
-              else keyword
-                     "interface" <++> pretty n <++> paramsDoc <++> keyword
-                                                                     "where"
+    in if null params
+         then keyword "interface" <++> pretty n <++> keyword "where"
+         else hsep [keyword "interface", pretty n, paramsDoc, keyword "where"]
 prettyImplDecl _ (MkImplDecl name interfaceName params body) =
   implDeclDoc name interfaceName params body
 prettyFixityDecl _ (MkFixityDecl fix prec names) =
