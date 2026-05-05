@@ -219,6 +219,13 @@ prettyExpr d (EPi rig Implicit (Just n) arg ret) =
                    (braces
                       (prettyRig rig <+> pretty n <++> colon <++> pretty arg))
                    (line "->" <++> pretty ret)
+prettyExpr d (EPi rig AutoImplicit (Just n) arg ret) =
+  parenthesise
+    (d > Open) $ hangSep' 2
+                   (braces
+                      (keyword "auto" <++> prettyRig rig <+> pretty n <++>
+                         colon <++> pretty arg))
+                   (line "->" <++> pretty ret)
 prettyExpr d (EPi rig Explicit Nothing arg ret) =
   parenthesise (d > Open) $ hangSep' 2 (pretty arg) (line "->" <++> pretty ret)
 prettyExpr d (EPi _ _ _ arg ret) =
@@ -449,30 +456,20 @@ prettyDoStmt _ (DoLetPat pat val _) =
 prettyDoStmt _ (DoRewrite rule) = keyword "rewrite" <++> pretty rule
 prettyStringPart _ (StrLit s) = text s
 prettyStringPart _ (StrInterp tm) = line "\\{" <+> pretty tm <+> line "}"
+tyParamDoc : {opts : _} -> (AST.Name, AST.Expr AST.Name) -> Doc opts
+tyParamDoc (p, AST.EImplicit) = pretty p
+tyParamDoc (p, t) = parens (pretty p <++> colon <++> pretty t)
+
 prettyConDecl _ (MkConDecl n ty) = conNameDoc n <++> colon <++> pretty ty
 prettyFieldDecl _ (MkFieldDecl n ty) = pretty n <++> colon <++> pretty ty
 prettyDataDecl _ (MkDataDecl n params ty cons) =
-  let paramsDoc = hsep
-                    (map
-                       (\(p, t) => parens (pretty p <++> colon <++> pretty t))
-                       params)
-    in let base = pretty n <++> colon <++> pretty ty <++> keyword "where"
-         in if null params
-              then keyword "data" <++> base
-              else hsep
-                     [ keyword "data"
-                     , pretty n
-                     , paramsDoc
-                     , colon
-                     , pretty ty
-                     , keyword "where"
-                     ]
+  let paramsDoc = hsep (map tyParamDoc params)
+      base = pretty n <++> colon <++> pretty ty <++> keyword "where"
+    in if null params
+         then keyword "data" <++> base
+         else hsep [keyword "data", pretty n, paramsDoc, colon, pretty ty, keyword "where"]
 prettyRecordDecl _ (MkRecordDecl n params conName fields) =
-  let paramsDoc = hsep
-                    (map
-                       (\(p, ty) =>
-                          parens (pretty p <++> colon <++> pretty ty))
-                       params)
+  let paramsDoc = hsep (map tyParamDoc params)
     in if null params
          then keyword "record" <++> pretty n <++> keyword "where"
          else hsep [keyword "record", pretty n, paramsDoc, keyword "where"]
