@@ -32,9 +32,10 @@ commaSep _ [] =
 commaSep _ [x] =
   x
 commaSep k xs =
-  let horiz = hsep (intersperse (text ", ") xs)
-    in let vert = vsep (map (indent k) (intersperse (text ",") xs))
-         in horiz <|> vert
+  let
+    horiz = hsep (intersperse (text ", ") xs)
+    vert  = vsep (map (indent k) (intersperse (text ",") xs))
+  in horiz <|> vert
 
 ||| `hangSep` helper: keyword + body that breaks.
 export hangSep'' : {opts : _} -> Nat -> Doc opts -> Doc opts -> Doc opts

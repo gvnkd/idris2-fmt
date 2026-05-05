@@ -51,15 +51,18 @@ alignLine token line targetCol =
     Just col =>
       if col >= targetCol
         then line
-        else let pad = targetCol `minus` col
-               in let n = col `minus` 1
-                    in let (before, after) = strSplitAt n line
-                         in before ++ spaces pad ++ after
+        else let
+               pad             = targetCol `minus` col
+               n               = col `minus` 1
+               (before, after) = strSplitAt n line
+             in before ++ spaces pad ++ after
   where
     strSplitAt : Nat -> String -> (String, String)
     strSplitAt n s =
-      let bs = take n (unpack s)
-        in let as = drop n (unpack s) in (pack bs, pack as)
+      let
+        bs = take n (unpack s)
+        as = drop n (unpack s)
+      in (pack bs, pack as)
 
 ||| Align a single block of lines on the given token.
 alignBlock : String -> List String -> List String
@@ -93,10 +96,12 @@ groupBlocks minIndent token (l :: ls) =
 ||| Apply alignment for one token type.
 alignToken : Nat -> String -> String -> String
 alignToken minIndent token src =
-  let lines_ = lines src
-    in let blocks = groupBlocks minIndent token lines_
-         in let aligned = map (alignBlock token) blocks
-              in let merged = mergeBlocks lines_ aligned in unlines merged
+  let
+    lines_  = lines src
+    blocks  = groupBlocks minIndent token lines_
+    aligned = map (alignBlock token) blocks
+    merged  = mergeBlocks lines_ aligned
+  in unlines merged
   where
     mergeBlocks : List String -> List (List String) -> List String
     mergeBlocks [] _ =
@@ -118,11 +123,13 @@ alignToken minIndent token src =
 export applyAlignment : CFG.Config -> String -> String
 applyAlignment cfg src =
   let rules = cfg.alignRules
-    in applySteps rules.alignCaseArrows
-         " => " $ applySteps rules.alignTypeSigs
-                    " : " $ applySteps rules.alignFunctionDefs
-                              " = " $ applySteps rules.alignRecordFields " : "
-                                        src
+    in applySteps rules.alignCaseArrows " => "
+       $
+         applySteps rules.alignTypeSigs " : "
+         $
+           applySteps rules.alignFunctionDefs " = "
+           $
+             applySteps rules.alignRecordFields " : " src
   where
     applySteps : Bool -> String -> String -> String
     applySteps True tok s =

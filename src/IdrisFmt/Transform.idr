@@ -39,8 +39,9 @@ sortImports [] =
 sortImports (d :: rest) =
   if isImport d
     then let (imports, nonImports) = collectImports (d :: rest)
-           in L.sortBy importCmp
-                imports ++ sortImports (assert_smaller (d :: rest) nonImports)
+           in L.sortBy importCmp imports
+              ++
+                sortImports (assert_smaller (d :: rest) nonImports)
     else d :: sortImports rest
 
 ||| Merge consecutive blank-line declarations into a single blank.
@@ -60,7 +61,7 @@ mergeBlankLines (d :: rest) =
 ||| This is the fusion point: multiple passes composed into
 ||| a single function pipeline.
 export transformModule : CFG.Config
-                           -> List (AST.Decl AST.Name)
-                                -> List (AST.Decl AST.Name)
+                         -> List (AST.Decl AST.Name)
+                         -> List (AST.Decl AST.Name)
 transformModule cfg =
   sortImports . mergeBlankLines

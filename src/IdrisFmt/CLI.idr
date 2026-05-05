@@ -23,8 +23,9 @@ parseArgs [] =
 parseArgs (_ :: args) =
   go args CFG.defaultConfig False False False []
   where
-    go : List String
-           -> CFG.Config -> Bool -> Bool -> Bool -> List String -> Maybe Args
+    go : List
+           String -> CFG.Config -> Bool -> Bool -> Bool -> List String -> Maybe
+                                                                            Args
     go [] cfg check inplace stdin files =
       Just (MkArgs (reverse files) cfg check inplace stdin)
     go ("--check" :: rest) cfg c i s fs =

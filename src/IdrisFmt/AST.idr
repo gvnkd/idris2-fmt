@@ -93,8 +93,8 @@ mutual
   data Decl : Type -> Type where
     DModule : String -> List String -> Decl nm
     DImport : ImportDecl -> Decl nm
-    DClaim : List C.Comment
-               -> Visibility -> nm -> Expr nm -> List FnOpt -> Decl nm
+    DClaim : List
+               C.Comment -> Visibility -> nm -> Expr nm -> List FnOpt -> Decl nm
     DDef : List C.Comment -> nm -> List (Clause nm) -> Decl nm
     DData : List C.Comment -> Visibility -> DataDecl nm -> Decl nm
     DRecord : List C.Comment -> Visibility -> RecordDecl nm -> Decl nm
@@ -115,15 +115,17 @@ mutual
   public export
   data Expr : Type -> Type where
     ERef : nm -> Expr nm
-    EPi : RigCount
-            -> PiInfo (Expr nm) -> Maybe nm -> Expr nm -> Expr nm -> Expr nm
+    EPi : RigCount -> PiInfo
+                        (Expr nm) -> Maybe nm -> Expr nm -> Expr nm -> Expr nm
     EForall : List nm -> Expr nm -> Expr nm
-    ELam : RigCount
-             -> PiInfo (Expr nm) -> Expr nm -> Expr nm -> Expr nm -> Expr nm
-    ELet : RigCount
-             -> Expr nm
-                  -> Expr nm
-                       -> Expr nm -> Expr nm -> List (Clause nm) -> Expr nm
+    ELam : RigCount -> PiInfo
+                         (Expr nm) -> Expr nm -> Expr nm -> Expr nm -> Expr nm
+    ELet : RigCount -> Expr
+                         nm -> Expr
+                                 nm -> Expr
+                                         nm -> Expr
+                                                 nm -> List
+                                                         (Clause nm) -> Expr nm
     EApp : Expr nm -> Expr nm -> Expr nm
     EWithApp : Expr nm -> Expr nm -> Expr nm
     ENamedApp : Expr nm -> nm -> Expr nm -> Expr nm
@@ -174,8 +176,9 @@ mutual
   data DoStmt : Type -> Type where
     DoExp : Expr nm -> DoStmt nm
     DoBind : nm -> RigCount -> Maybe (Expr nm) -> Expr nm -> DoStmt nm
-    DoBindPat : Expr nm
-                  -> Maybe (Expr nm) -> Expr nm -> List (Clause nm) -> DoStmt nm
+    DoBindPat : Expr
+                  nm -> Maybe
+                          (Expr nm) -> Expr nm -> List (Clause nm) -> DoStmt nm
     DoLet : nm -> RigCount -> Expr nm -> DoStmt nm
     DoLetPat : Expr nm -> Expr nm -> List (Clause nm) -> DoStmt nm
     DoRewrite : Expr nm -> DoStmt nm
