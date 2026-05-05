@@ -737,10 +737,9 @@ prettyDoStmt _ (DoBindPat pat ty val _) =
     tyDoc (Just t) =
       space <+> colon <++> pretty t
 prettyDoStmt _ (DoLet n rig tm) =
-  hangSep' 2 (keyword "let" <++> prettyRig rig <+> pretty n <++> equals)
-    (pretty tm)
+  hangSep' 6 (keyword "let" <++> prettyRig rig <+> pretty n <++> equals) (pretty tm)
 prettyDoStmt _ (DoLetPat pat val _) =
-  hangSep' 2 (keyword "let" <++> pretty pat <++> equals) (pretty val)
+  hangSep' 6 (keyword "let" <++> pretty pat <++> equals) (pretty val)
 prettyDoStmt _ (DoRewrite rule) =
   keyword "rewrite" <++> pretty rule
 prettyStringPart _ (StrLit s) =

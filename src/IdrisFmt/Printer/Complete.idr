@@ -666,12 +666,12 @@ mutual
   prettyDoStmtM (DoLet n rig tm) = do
     nDoc <- prettyNameM n
     tmDoc <- prettyExprM tm
-    pure (hangSep' 2 (keyword "let" <++> prettyRig rig <+> nDoc <++> equals) tmDoc)
+    pure (hangSep' 6 (keyword "let" <++> prettyRig rig <+> nDoc <++> equals) tmDoc)
 
   prettyDoStmtM (DoLetPat pat val _) = do
     patDoc <- prettyExprM pat
     valDoc <- prettyExprM val
-    pure (hangSep' 2 (keyword "let" <++> patDoc <++> equals) valDoc)
+    pure (hangSep' 6 (keyword "let" <++> patDoc <++> equals) valDoc)
 
   prettyDoStmtM (DoRewrite rule) = do
     ruleDoc <- prettyExprM rule

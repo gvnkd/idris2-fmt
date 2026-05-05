@@ -86,7 +86,7 @@ parseArgs [] =
 parseArgs (prog :: args) =
   if isHelpFlag args
     then Nothing
-    else case R.runParserWith cliParser args of
+    else case R.runParser cliParser args of
            T.Success val => Just val
            T.Failure _ =>
              Nothing
