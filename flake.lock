@@ -162,11 +162,25 @@
         "type": "github"
       }
     },
+    "optparse-applicative": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1778010607,
+        "narHash": "sha256-o0VaLmHloZYXSOB7u4t6M4dS9MGRTnvUagcicP26Zb0=",
+        "path": "/srv/idris2-optparse-applicative",
+        "type": "path"
+      },
+      "original": {
+        "path": "/srv/idris2-optparse-applicative",
+        "type": "path"
+      }
+    },
     "root": {
       "inputs": {
         "flake-utils": "flake-utils",
         "idris2-withpkgs": "idris2-withpkgs",
-        "nixpkgs": "nixpkgs_2"
+        "nixpkgs": "nixpkgs_2",
+        "optparse-applicative": "optparse-applicative"
       }
     },
     "systems": {

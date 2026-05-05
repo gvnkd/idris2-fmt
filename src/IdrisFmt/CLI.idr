@@ -2,9 +2,14 @@ module IdrisFmt.CLI
 import Data.List as L
 import Data.String as S
 import IdrisFmt.Config as CFG
+import Options.Applicative.Builder as B
+import Options.Applicative.Run as R
+import Options.Applicative.Types as T
+import Options.Applicative.Help as H
+import Options.Applicative.Multi as M
 import System
 
-%default total
+%default covering
 
 ||| Parsed command-line arguments.
 public export
@@ -16,60 +21,80 @@ record Args where
   inplace : Bool
   stdin : Bool
 
-||| Parse raw command-line arguments into structured Args.
+||| Default args when no arguments provided.
+defaultArgs : Args
+defaultArgs = MkArgs [] CFG.defaultConfig False False False
+
+||| Build the CLI parser.
+cliParser : T.Parser Args
+cliParser =
+  MkArgs
+  <$> filesP
+  <*> configP
+  <*> checkP
+  <*> inplaceP
+  <*> stdinP
+  where
+    checkP : T.Parser Bool
+    checkP = flag' ["--check"] `H.mhelp` "Check formatting without writing"
+
+    inplaceP : T.Parser Bool
+    inplaceP = flag' ["--inplace"] `H.mhelp` "Edit files in place"
+
+    stdinP : T.Parser Bool
+    stdinP = flag' ["--stdin"] `H.mhelp` "Read from stdin"
+
+    natOption : List String -> String -> T.Parser (Maybe Nat)
+    natOption names desc =
+      map parseNat
+        (optionalStr
+          (H.metavarMod (H.mhelp (strOption names) desc) "N"))
+      where
+        parseNat : Maybe String -> Maybe Nat
+        parseNat Nothing = Nothing
+        parseNat (Just s) = S.parsePositive s
+
+        optionalStr : T.Parser String -> T.Parser (Maybe String)
+        optionalStr p = map Just p <|> pure Nothing
+
+    configP : T.Parser CFG.Config
+    configP =
+      mkConfig <$> natOption ["--indent"] "Indentation width (default: 2)"
+                  <*> natOption ["--width"] "Line length (default: 80)"
+      where
+        mkConfig : Maybe Nat -> Maybe Nat -> CFG.Config
+        mkConfig mIndent mWidth =
+          let i = case mIndent of
+                    Nothing => CFG.defaultConfig.indentWidth
+                    Just n => n
+              w = case mWidth of
+                    Nothing => CFG.defaultConfig.lineLength
+                    Just n => n
+          in MkConfig i w CFG.defaultConfig.alignRules
+
+    filesP : T.Parser (List String)
+    filesP = M.manyUpTo 64 (argument "FILE" `H.mhelp` "Source files to format")
+
+||| Check if args contain help flag.
+isHelpFlag : List String -> Bool
+isHelpFlag args = elem "--help" args || elem "-h" args
+
+||| Run the CLI parser against raw arguments.
 export parseArgs : List String -> Maybe Args
 parseArgs [] =
   Nothing
-parseArgs (_ :: args) =
-  go args CFG.defaultConfig False False False []
-  where
-    go : List
-           String -> CFG.Config -> Bool -> Bool -> Bool -> List String -> Maybe
-                                                                            Args
-    go [] cfg check inplace stdin files =
-      Just (MkArgs (reverse files) cfg check inplace stdin)
-    go ("--check" :: rest) cfg c i s fs =
-      go rest cfg True i s fs
-    go ("--inplace" :: rest) cfg c i s fs =
-      go rest cfg c True s fs
-    go ("--stdin" :: rest) cfg c i s fs =
-      go rest cfg c i True fs
-    go ("--help" :: _) _ _ _ _ _ =
-      Nothing
-    go ("--indent" :: nStr :: rest) cfg c i s fs =
-      case S.parsePositive nStr of
-        Nothing =>
-          Nothing
-        Just n =>
-          go rest (MkConfig n cfg.lineLength cfg.alignRules) c i s fs
-    go ("--indent" :: []) _ _ _ _ _ =
-      Nothing
-    go ("--width" :: nStr :: rest) cfg c i s fs =
-      case S.parsePositive nStr of
-        Nothing =>
-          Nothing
-        Just n =>
-          go rest (MkConfig cfg.indentWidth n cfg.alignRules) c i s fs
-    go ("--width" :: []) _ _ _ _ _ =
-      Nothing
-    go (arg :: rest) cfg c i s fs =
-      case unpack arg of
-        '-' :: '-' :: _ =>
-          Nothing
-        _ =>
-          go rest cfg c i s (arg :: fs)
+parseArgs (prog :: args) =
+  if isHelpFlag args
+    then Nothing
+    else case R.runParserWith cliParser args of
+           T.Success val => Just val
+           T.Failure _ =>
+             Nothing
+           T.CompletionInvoked =>
+             Nothing
 
 ||| Usage string displayed on --help or invalid input.
 export showUsage : String
 showUsage =
-  unlines
-    [ "idris2-fmt [options] <files...>"
-    , ""
-    , "Options:"
-    , "  --check       Check formatting without writing"
-    , "  --inplace     Edit files in place"
-    , "  --stdin       Read from stdin"
-    , "  --indent N    Indentation width (default: 2)"
-    , "  --width N     Line length (default: 80)"
-    , "  --help        Show this help"
-    ]
+  let helpInfo = H.collectHelpInfo "idris2-fmt" cliParser
+  in H.formatHelp helpInfo

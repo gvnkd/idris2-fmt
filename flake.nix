@@ -5,22 +5,35 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
     idris2-withpkgs.url = "github:gvnkd/flake-idris2-withPackages";
+    optparse-applicative = {
+      url = "path:/srv/idris2-optparse-applicative";
+      flake = false;
+    };
   };
 
-  outputs = { self, nixpkgs, flake-utils, idris2-withpkgs }:
+  outputs = { self, nixpkgs, flake-utils, idris2-withpkgs, optparse-applicative }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
         idris2 = idris2-withpkgs.inputs.idris2-src.packages.${system}.idris2;
         idris2api = idris2-withpkgs.inputs.idris2-src.packages.${system}.idris2Api;
 
+        # Build optparse-applicative from local source
+        optparseLib = pkgs.idris2Packages.buildIdris {
+          src = optparse-applicative;
+          ipkgName = "optparse-applicative";
+          version = "0.1.0";
+          idrisLibraries = with idris2-withpkgs.packages.${system}; [
+            # optparse-applicative has no external deps
+          ];
+        };
+
         # Select registry packages to use as dependencies.
-        # Available packages: containers, algebra, array, json, json-simple,
-        # async, bytestring, hedgehog, parser, and 150+ more.
         idrisLibraries = with idris2-withpkgs.packages.${system}; [
           prettier
           parser
           idris2api
+          optparseLib.library'
         ];
 
         # Wrapped idris2 with all selected packages available in devShell
@@ -28,12 +41,12 @@
           p.prettier
           p.parser
           idris2api
+          optparseLib.library'
         ]);
 
         # Docs packages for dependencies (add <name>-docs here)
         docsPkgs = with idris2-withpkgs.packages.${system}; [
           # Add dependency docs here as needed
-          # json-docs
         ];
 
         # Combine all docs into a single tree: <combined>/share/doc/<pkg>/
@@ -81,7 +94,6 @@
 
         devShells.default = pkgs.mkShell {
           nativeBuildInputs = with pkgs; [
-            #python3.withPackages( p: [ ] )
             idris2Packages.idris2Lsp
             python3
             gnused gnugrep gawk diffutils jq yq ripgrep
