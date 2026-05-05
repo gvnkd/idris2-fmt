@@ -17,8 +17,8 @@ record Trace where
 public export
 record PrintCtx where
   constructor MkPrintCtx
-  config : CFG.Config
-  prec   : Prec
+  baseConfig : CFG.Config
+  prec       : Prec
   layoutOpts : LayoutOpts
 
 ||| The monad: RWS with PrintCtx environment, List Trace writer, () state.
@@ -31,10 +31,15 @@ export
 runPrinterM : CFG.Config -> Prec -> LayoutOpts -> PrinterM a -> (a, (), List Trace)
 runPrinterM cfg p opts m = runRWS (MkPrintCtx cfg p opts) () m
 
-||| Get the current config.
+||| Evaluate a PrinterM computation, discarding state.
+export
+evalPrinterM : CFG.Config -> Prec -> LayoutOpts -> PrinterM a -> (a, List Trace)
+evalPrinterM cfg p opts m = evalRWS (MkPrintCtx cfg p opts) () m
+
+||| Get the current base config.
 export
 getConfig : PrinterM CFG.Config
-getConfig = asks config
+getConfig = asks baseConfig
 
 ||| Get the current precedence.
 export
