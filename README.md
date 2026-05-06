@@ -256,6 +256,8 @@ All Idris 2 code follows the type-hole workflow:
 
 ### Known limitations
 
+- **Syntax-only, not type-aware** — The formatter parses and prints. It does not type-check. Valid-looking but type-invalid code (wrong constructor shapes, missing wildcards) will pass through silently. Always run `idris2 --build` after formatting.
+- **Edit tool fragility** — Automated string replacement on `.idr` files can break Idris 2's off-side rule. The formatter's `--fix-indentation` handles minor issues but cannot reconstruct mangled ASTs. Always verify compilation after automated edits.
 - `where` clauses are supported but very deeply nested `where` blocks may need manual review.
 - Some advanced TTImp constructs (e.g., `PRunElabDecl` bodies) are translated to placeholder comments.
 - Multiline strings are preserved as-is.
