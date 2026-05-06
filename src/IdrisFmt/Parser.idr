@@ -389,8 +389,8 @@ mutual
     "search_timeout " ++ show n
   translateDirective (CGAction cg act) =
     "cg " ++ cg ++ " " ++ act
-  translateDirective (Extension _) =
-    "language"
+  translateDirective (Extension ext) =
+    "language " ++ show ext
   translateDirective (Overloadable n) =
     "overloadable " ++ show n
   translateDirective (Names n ns) =

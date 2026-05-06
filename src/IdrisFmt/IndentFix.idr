@@ -100,12 +100,33 @@ getLineAt _ [] = ""
 getLineAt Z (l :: _) = l
 getLineAt (S n) (_ :: ls) = getLineAt n ls
 
-||| Apply indentation fixes to all lines.
+||| Check if a line is a bare %language directive missing its argument.
+isBareLanguage : String -> Bool
+isBareLanguage line =
+  let trimmed = S.trim line
+      prefixLen = length (unpack "%language ")
+      rest = drop prefixLen (unpack trimmed)
+   in trimmed == "%language" || (S.isPrefixOf "%language " trimmed && S.trim (pack rest) == "")
+
+||| Fix bare %language by adding ElabReflection.
+fixBareLanguage : String -> String
+fixBareLanguage line =
+  if isBareLanguage line
+    then "%language ElabReflection"
+    else line
+
+||| Apply bare %language fix to all lines.
+fixBareLanguages : List String -> List String
+fixBareLanguages = map fixBareLanguage
+
+||| Apply indentation fixes and bare directive fixes to all lines.
 export
 fixIndentation : String -> String
 fixIndentation src =
   let lines_ = S.lines src
-   in S.unlines (fixAllBlocks lines_ 0)
+      fixedLines = fixAllBlocks lines_ 0
+      fixedDirectives = fixBareLanguages fixedLines
+   in S.unlines fixedDirectives
   where
     fixAllBlocks : List String -> Nat -> List String
     fixAllBlocks ls i =
