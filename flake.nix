@@ -64,23 +64,28 @@
           chmod +x $out/bin/doc
         '';
 
-        # Version from git (flakes provide self.rev / self.dirtyRev)
-        gitVersion = self.rev or self.dirtyRev or "unknown";
+        # Version: try git tag locally, fall back to short rev for Nix builds
+        shortRev = self.shortRev or (if self ? rev then builtins.substring 0 7 self.rev else "unknown");
 
         pkg = pkgs.idris2Packages.buildIdris {
           src = ./.;
           ipkgName = "idris2-fmt";
-          version = gitVersion;
+          version = shortRev;
           inherit idrisLibraries;
           preBuild = ''
             mkdir -p src/IdrisFmt
-            cat > src/IdrisFmt/Version.idr << 'EOF'
+            if [ -d .git ] && command -v git >/dev/null 2>&1; then
+              version=$(git describe --tags --always 2>/dev/null || echo "${shortRev}")
+            else
+              version="${shortRev}"
+            fi
+            cat > src/IdrisFmt/Version.idr << EOF
             module IdrisFmt.Version
 
             ||| Formatter version, auto-generated from git tag at build time.
             export
             versionString : String
-            versionString = "${gitVersion}"
+            versionString = "$version"
             EOF
           '';
         };
