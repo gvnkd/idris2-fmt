@@ -459,7 +459,7 @@ mutual
     rDoc <- withPrec Open (prettyExprM r)
     opDoc <- prettyOpStrM op
     let horiz = lDoc <++> opDoc <++> rDoc
-        vert = vsep [lDoc, opDoc, indent 2 rDoc]
+        vert = vsep [lDoc <++> opDoc, indent 2 rDoc]
     if isHeavy r
       then do
         tr "EOp" "rhs is heavy, vertical layout"
