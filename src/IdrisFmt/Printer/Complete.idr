@@ -78,15 +78,34 @@ Show IfStyle where
   show Indented = "Indented"
 
 export
+Eq IfStyle where
+  Compact == Compact = True
+  Indented == Indented = True
+  _ == _ = False
+
+export
 Show LetStyle where
   show Inline = "Inline"
   show Auto = "Auto"
   show Block = "Block"
 
 export
+Eq LetStyle where
+  Inline == Inline = True
+  Auto == Auto = True
+  Block == Block = True
+  _ == _ = False
+
+export
 Show ArrowStyle where
   show Trailing = "Trailing"
   show Leading = "Leading"
+
+export
+Eq ArrowStyle where
+  Trailing == Trailing = True
+  Leading == Leading = True
+  _ == _ = False
 
 ||| Extended formatter config.
 public export
@@ -223,7 +242,7 @@ mutual
   prettyAutoLetM rig pat ty val scope =
     case Blocks.flattenELet (ELet rig pat ty val scope []) of
       Just (MkLetBlock bs sc, _) =>
-        if length bs == 1
+        if length bs == 1 && not (isHeavy val)
           then prettyInlineLetM rig pat ty val sc
           else prettyBlockLetM bs sc
       Nothing => prettyInlineLetM rig pat ty val scope
@@ -232,9 +251,14 @@ mutual
   prettySinglePiM : {layoutOpts : _} -> List (AST.RigCount, (AST.PiInfo (AST.Expr AST.Name), (Maybe AST.Name, AST.Expr AST.Name))) -> AST.Expr AST.Name -> PrinterM (Doc layoutOpts)
   prettySinglePiM [(rig, (info, (n, arg)))] res = do
     d <- getPrec
+    arrowStyle <- asks (\ctx => case ctx.config of MkFmtConfig _ _ style _ => style)
     argDoc <- prettyParamM rig info n arg
     resDoc <- withPrec Open (prettyExprM res)
-    pure (parenthesise (d > Open) $ hangSep' 2 argDoc (line "->" <++> resDoc))
+    let trailingDoc = hangSep' 2 argDoc (line "->" <++> resDoc)
+        leadingDoc = vsep [argDoc, indent 2 (line "->" <++> resDoc)]
+    if arrowStyle == Trailing
+      then pure (parenthesise (d > Open) trailingDoc)
+      else pure (parenthesise (d > Open) leadingDoc)
   prettySinglePiM _ res = withPrec Open (prettyExprM res)
 
   piParamDocsM : {layoutOpts : _} -> List (AST.RigCount, (AST.PiInfo (AST.Expr AST.Name), (Maybe AST.Name, AST.Expr AST.Name))) -> PrinterM (List (Doc layoutOpts))
@@ -252,6 +276,7 @@ mutual
   prettyPiBlockM : {layoutOpts : _} -> List (AST.RigCount, (AST.PiInfo (AST.Expr AST.Name), (Maybe AST.Name, AST.Expr AST.Name))) -> AST.Expr AST.Name -> PrinterM (Doc layoutOpts)
   prettyPiBlockM ps res = do
     d <- getPrec
+    arrowStyle <- asks (\ctx => case ctx.config of MkFmtConfig _ _ style _ => style)
     paramDocs <- piParamDocsM ps
     let maxParamW = Measure.maxWidth (map Measure.measureWidth paramDocs)
         alignedParams = piAlignedParamsM maxParamW paramDocs
@@ -260,7 +285,12 @@ mutual
                  [] => resDoc
                  (p :: rest) => vsep (p :: map (\q => line "-> " <+> q) (rest ++ [resDoc]))
         horiz = hsep (intersperse (line "->") (paramDocs ++ [resDoc]))
-    pure (parenthesise (d > Open) $ horiz <|> vert)
+        leadingParams = case paramDocs of
+                          [] => [resDoc]
+                          (p :: rest) => p :: map (\q => line "-> " <+> q) (rest ++ [resDoc])
+    if arrowStyle == Trailing
+      then pure (parenthesise (d > Open) (horiz <|> vert))
+      else pure (parenthesise (d > Open) (vsep leadingParams))
 
   branchDocM : {layoutOpts : _} -> Doc layoutOpts -> AST.Expr AST.Name -> PrinterM (Doc layoutOpts)
   branchDocM kw (EDo _ stmts) = do
@@ -626,7 +656,9 @@ mutual
   prettyClauseM (MkCaseClause lhs rhs) = do
     lhsDoc <- prettyExprM lhs
     rhsDoc <- prettyExprM rhs
-    pure ((lhsDoc <++> keyword "=>") `vappend` indent 2 rhsDoc)
+    let horiz = lhsDoc <++> keyword "=>" <++> rhsDoc
+        vert = (lhsDoc <++> keyword "=>") `vappend` indent 2 rhsDoc
+    pure (ifMultiline horiz vert)
 
   prettyClauseM (MkWith lhs wps cs) = do
     lhsDoc <- prettyExprM lhs

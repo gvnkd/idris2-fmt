@@ -10,15 +10,13 @@ record AlignRules where
   alignTypeSigs : Bool
   alignFunctionDefs : Bool
   alignRecordFields : Bool
-  alignListValues : Bool
 -- align => in case alternatives
 -- align : in data/interface decls
 -- align = in adjacent function defs
 -- align : in record fields
--- align values in multi-line lists
 export defaultAlignRules : AlignRules
 defaultAlignRules =
-  MkAlignRules True True True True False
+  MkAlignRules True True True True
 
 ||| Central formatter configuration.
 public export

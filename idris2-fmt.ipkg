@@ -7,6 +7,7 @@ modules = IdrisFmt.AST
         , IdrisFmt.Blocks
         , IdrisFmt.Comments
         , IdrisFmt.Config
+        , IdrisFmt.ConfigFile
         , IdrisFmt.Doc
         , IdrisFmt.Layout
         , IdrisFmt.Measure
