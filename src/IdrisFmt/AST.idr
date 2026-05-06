@@ -181,7 +181,7 @@ mutual
     DoBindPat : Expr
                   nm -> Maybe
                           (Expr nm) -> Expr nm -> List (Clause nm) -> DoStmt nm
-    DoLet : nm -> RigCount -> Expr nm -> DoStmt nm
+    DoLet : nm -> RigCount -> Expr nm -> Expr nm -> DoStmt nm
     DoLetPat : Expr nm -> Expr nm -> List (Clause nm) -> DoStmt nm
     DoRewrite : Expr nm -> DoStmt nm
   ||| Data type declaration.

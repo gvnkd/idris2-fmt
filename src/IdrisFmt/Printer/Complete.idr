@@ -710,10 +710,16 @@ mutual
     tyDoc <- tyDocM ty
     pure (hangSep' 2 (patDoc <+> tyDoc <++> keyword "<-") valDoc)
 
-  prettyDoStmtM (DoLet n rig tm) = do
+  prettyDoStmtM (DoLet n rig ty tm) = do
     nDoc <- prettyNameM n
     tmDoc <- prettyExprM tm
-    pure (hangSep' 6 (keyword "let" <++> prettyRig rig <+> nDoc <++> equals) tmDoc)
+    let tyDocM = case ty of
+          AST.EImplicit => pure Doc.empty
+          _             => do
+            tyDoc <- prettyExprM ty
+            pure (space <+> colon <++> tyDoc)
+    tyDoc <- tyDocM
+    pure (hangSep' 6 (keyword "let" <++> prettyRig rig <+> nDoc <+> tyDoc <++> equals) tmDoc)
 
   prettyDoStmtM (DoLetPat pat val _) = do
     patDoc <- prettyExprM pat

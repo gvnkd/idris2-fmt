@@ -738,8 +738,14 @@ prettyDoStmt _ (DoBindPat pat ty val _) =
       Doc.empty
     tyDoc (Just t) =
       space <+> colon <++> pretty t
-prettyDoStmt _ (DoLet n rig tm) =
-  hangSep' 6 (keyword "let" <++> prettyRig rig <+> pretty n <++> equals) (pretty tm)
+prettyDoStmt _ (DoLet n rig ty tm) =
+  hangSep' 6 (keyword "let" <++> prettyRig rig <+> pretty n <+> tyDoc ty <++> equals) (pretty tm)
+  where
+    tyDoc : AST.Expr AST.Name -> Doc opts
+    tyDoc AST.EImplicit =
+      Doc.empty
+    tyDoc t =
+      space <+> colon <++> pretty t
 prettyDoStmt _ (DoLetPat pat val _) =
   hangSep' 6 (keyword "let" <++> pretty pat <++> equals) (pretty val)
 prettyDoStmt _ (DoRewrite rule) =

@@ -103,7 +103,7 @@ translatePDo_ trans (DoBindPat _ pat ty val alts) =
   AST.DoBindPat (trans pat) (map trans ty) (trans val)
     (map (translatePClauseAsCase_ trans) alts)
 translatePDo_ trans (DoLet _ _ n rig ty val) =
-  AST.DoLet (translateName n) (translateRig rig) (trans val)
+  AST.DoLet (translateName n) (translateRig rig) (trans ty) (trans val)
 translatePDo_ trans (DoLetPat _ pat ty val alts) =
   AST.DoLetPat (trans pat) (trans val)
     (map (translatePClauseAsCase_ trans) alts)
