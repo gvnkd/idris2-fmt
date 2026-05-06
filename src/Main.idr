@@ -20,7 +20,7 @@ import System.File.Virtual as SFV
 
 ||| Formatter version.
 versionString : String
-versionString = "0.2.0"
+versionString = "0.11.0"
 
 ||| Convert base config and style options to formatter config.
 mkFmtConfig : CFG.Config -> PRM.LetStyle -> PRM.ArrowStyle -> PRM.IfStyle -> PRM.FmtConfig
