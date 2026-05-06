@@ -4,4 +4,3 @@ build/
 .direnv/
 tests/**/output
 .taiga/
-src/IdrisFmt/Version.idr
