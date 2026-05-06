@@ -48,6 +48,29 @@ nix build
 # Result symlinked to ./result
 ```
 
+### System-wide installation (NixOS)
+
+Add to your `configuration.nix` or Home Manager config:
+
+```nix
+{ pkgs, ... }:
+{
+  environment.systemPackages = with pkgs; [
+    idris2-fmt
+  ];
+}
+```
+
+Or install imperatively:
+
+```bash
+nix-env -iA nixpkgs.idris2-fmt
+# or
+nix profile install nixpkgs#idris2-fmt
+```
+
+The binary is then available as `idris2-fmt` in your `$PATH`.
+
 ## Usage
 
 ```bash
