@@ -15,12 +15,9 @@ import IdrisFmt.Transform as T
 import System
 import System.File.ReadWrite as SFRW
 import System.File.Virtual as SFV
+import IdrisFmt.Version as V
 
 %default covering
-
-||| Formatter version.
-versionString : String
-versionString = "0.11.0"
 
 ||| Convert base config and style options to formatter config.
 mkFmtConfig : CFG.Config -> PRM.LetStyle -> PRM.ArrowStyle -> PRM.IfStyle -> PRM.FmtConfig
@@ -110,7 +107,7 @@ export run : CLI.Args -> IO ()
 run args =
   if args.version
     then
-      putStrLn versionString
+      putStrLn V.versionString
     else if args.stdin
       then do
         srcResult <-

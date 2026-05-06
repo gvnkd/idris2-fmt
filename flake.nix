@@ -64,15 +64,31 @@
           chmod +x $out/bin/doc
         '';
 
+        # Version from git (flakes provide self.rev / self.dirtyRev)
+        gitVersion = self.rev or self.dirtyRev or "unknown";
+
         pkg = pkgs.idris2Packages.buildIdris {
           src = ./.;
           ipkgName = "idris2-fmt";
-          version = "0.1.0";
+          version = gitVersion;
           inherit idrisLibraries;
+          preBuild = ''
+            mkdir -p src/IdrisFmt
+            cat > src/IdrisFmt/Version.idr << 'EOF'
+            module IdrisFmt.Version
+
+            ||| Formatter version, auto-generated from git tag at build time.
+            export
+            versionString : String
+            versionString = "${gitVersion}"
+            EOF
+          '';
         };
 
         buildScript = pkgs.writeShellScriptBin "build" ''
           set -e
+          echo "Generating version..."
+          bash ${./scripts/generate-version.sh}
           echo "Building..."
           idris2 --build
           echo "Build complete."

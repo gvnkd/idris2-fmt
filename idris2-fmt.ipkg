@@ -19,7 +19,7 @@ modules = IdrisFmt.AST
         , IdrisFmt.Parser
         , IdrisFmt.Printer
         , IdrisFmt.Transform
-        , IdrisFmt.CLI
+        , IdrisFmt.Version
         , Main
 main = Main
 executable = idris2-fmt
