@@ -25,14 +25,15 @@ record Args where
   inplace : Bool
   stdin : Bool
   version : Bool
+  fixIndentation : Bool
 
 ||| Default args when no arguments provided.
 defaultArgs : Args
-defaultArgs = MkArgs [] CFG.defaultConfig PRM.Auto PRM.Trailing PRM.Compact False False False False
+defaultArgs = MkArgs [] CFG.defaultConfig PRM.Auto PRM.Trailing PRM.Compact False False False False False
 
 ||| Known boolean flags.
 knownFlags : List String
-knownFlags = ["--check", "--inplace", "--stdin", "--version"]
+knownFlags = ["--check", "--inplace", "--stdin", "--version", "--fix-indentation"]
 
 ||| Known options that take a value.
 knownOptions : List String
@@ -115,6 +116,7 @@ cliParser =
   <*> inplaceP
   <*> stdinP
   <*> versionP
+  <*> fixIndentationP
   where
     checkP : T.Parser Bool
     checkP = flag' ["--check"] `H.mhelp` "Check formatting without writing"
@@ -127,6 +129,9 @@ cliParser =
 
     versionP : T.Parser Bool
     versionP = flag' ["--version"] `H.mhelp` "Show version information"
+
+    fixIndentationP : T.Parser Bool
+    fixIndentationP = flag' ["--fix-indentation"] `H.mhelp` "Auto-fix simple indentation errors"
 
     natOption : List String -> String -> T.Parser (Maybe Nat)
     natOption names desc =
@@ -176,9 +181,10 @@ parseArgs (prog :: args) =
           inplace = elem "--inplace" flags
           stdin = elem "--stdin" flags
           version = elem "--version" flags
+          fixIndentation = elem "--fix-indentation" flags
           config = mkConfigFromOpts opts
           (letStyle, arrowStyle, ifStyle) = mkStylesFromOpts opts
-       in Just (MkArgs files config letStyle arrowStyle ifStyle check inplace stdin version)
+       in Just (MkArgs files config letStyle arrowStyle ifStyle check inplace stdin version fixIndentation)
 
 ||| Usage string displayed on --help or invalid input.
 export showUsage : String

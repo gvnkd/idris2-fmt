@@ -7,6 +7,7 @@ import IdrisFmt.CLI as CLI
 import IdrisFmt.Config as CFG
 import IdrisFmt.ConfigFile as CF
 import IdrisFmt.Doc as D
+import IdrisFmt.IndentFix as IF
 import IdrisFmt.Parser as P
 import IdrisFmt.Printer as PR
 import IdrisFmt.Printer.Complete as PRM
@@ -31,6 +32,16 @@ formatSource cfg ls as is src =
   map (PRM.printModuleM (mkFmtConfig cfg ls as is) . T.transformModule cfg)
     (P.parseModule src)
 
+||| Try to format, optionally fixing indentation first.
+formatSourceWithFix : CFG.Config -> PRM.LetStyle -> PRM.ArrowStyle -> PRM.IfStyle -> Bool -> String -> Either P.ParseError String
+formatSourceWithFix cfg ls as is fixSrc src =
+  case formatSource cfg ls as is src of
+    Right result => Right result
+    Left err =>
+      if fixSrc
+        then formatSource cfg ls as is (IF.fixIndentation src)
+        else Left err
+
 ||| Print error to stderr.
 printErr : String -> IO ()
 printErr msg = do
@@ -40,8 +51,8 @@ printErr msg = do
 
 ||| Process a single file: read, format, then write or check.
 ||| Returns Just True if file needs formatting, Just False if ok, Nothing on error.
-processFile : CFG.Config -> PRM.LetStyle -> PRM.ArrowStyle -> PRM.IfStyle -> Bool -> Bool -> String -> IO (Maybe Bool)
-processFile cfg ls as is check inplace file = do
+processFile : CFG.Config -> PRM.LetStyle -> PRM.ArrowStyle -> PRM.IfStyle -> Bool -> Bool -> Bool -> String -> IO (Maybe Bool)
+processFile cfg ls as is fixSrc check inplace file = do
   srcResult <-
     SFRW.readFile file
   case srcResult of
@@ -49,7 +60,7 @@ processFile cfg ls as is check inplace file = do
       printErr ("Error reading " ++ file ++ ": " ++ show err)
       pure Nothing
     Right src =>
-      case formatSource cfg ls as is src of
+      case formatSourceWithFix cfg ls as is fixSrc src of
         Left err => do
           printErr ("Error formatting " ++ file ++ ": " ++ show err)
           pure Nothing
@@ -110,7 +121,7 @@ run args =
               printErr ("Error reading stdin: " ++ show err)
               exitFailure
           Right src =>
-            case formatSource args.config args.letStyle args.arrowStyle args.ifStyle src of
+            case formatSourceWithFix args.config args.letStyle args.arrowStyle args.ifStyle args.fixIndentation src of
               Left err =>
                 do
                   printErr ("Error: " ++ show err)
@@ -119,7 +130,7 @@ run args =
                 putStr out
       else do
         results <-
-          traverse (processFile args.config args.letStyle args.arrowStyle args.ifStyle args.check args.inplace) args.files
+          traverse (processFile args.config args.letStyle args.arrowStyle args.ifStyle args.fixIndentation args.check args.inplace) args.files
         let hasErrors = any isNothing results
             needsFmt = any (== Just True) results
         if hasErrors

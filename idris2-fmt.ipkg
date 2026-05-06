@@ -9,6 +9,7 @@ modules = IdrisFmt.AST
         , IdrisFmt.Config
         , IdrisFmt.ConfigFile
         , IdrisFmt.Doc
+        , IdrisFmt.IndentFix
         , IdrisFmt.Layout
         , IdrisFmt.Measure
         , IdrisFmt.Monad
