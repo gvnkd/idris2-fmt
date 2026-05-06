@@ -82,17 +82,28 @@ fixBlock lines i baseIndent =
            in (buildFixedLines lines fixedBody bodyStart bodyCount, bodyCount)
 
 ||| Check if a line is a block opener (do, let, where, case ... of).
+||| Matches both suffix form (e.g., "foo = do") and prefix form (e.g., "let x = 1").
 isBlockOpener : String -> Bool
 isBlockOpener line =
   let trimmed = S.trim line
+      startsWithDo = S.isPrefixOf "do " (trimmed ++ " ")
+      startsWithWhere = S.isPrefixOf "where " (trimmed ++ " ")
+      startsWithOf = S.isPrefixOf "of " (trimmed ++ " ")
+      startsWithLet = S.isPrefixOf "let " (trimmed ++ " ")
+      startsWithIn = S.isPrefixOf "in " (trimmed ++ " ")
    in S.isSuffixOf " do" trimmed ||
       trimmed == "do" ||
+      startsWithDo ||
       S.isSuffixOf " where" trimmed ||
       trimmed == "where" ||
+      startsWithWhere ||
       S.isSuffixOf " of" trimmed ||
+      startsWithOf ||
       S.isSuffixOf " let" trimmed ||
       trimmed == "let" ||
-      S.isSuffixOf " in" trimmed
+      startsWithLet ||
+      S.isSuffixOf " in" trimmed ||
+      startsWithIn
 
 ||| Get line at index, or empty string if out of bounds.
 getLineAt : Nat -> List String -> String
