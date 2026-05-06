@@ -157,6 +157,7 @@ mutual
     ESectionR : Expr nm -> OpStr nm -> Expr nm
     EBracketed : Expr nm -> Expr nm
     EAs : nm -> Expr nm -> Expr nm
+    ETyped : Expr nm -> Expr nm -> Expr nm
     EDotted : Expr nm -> Expr nm
     EComment : C.Comment -> Expr nm -> Expr nm
     ERecordUpdate : Expr nm -> List (List String, Expr nm) -> Expr nm

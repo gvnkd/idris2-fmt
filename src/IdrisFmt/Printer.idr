@@ -559,6 +559,8 @@ prettyExpr _ (EBracketed x) =
   parens (pretty x)
 prettyExpr _ (EAs n x) =
   pretty n <+> line "@" <+> pretty x
+prettyExpr _ (ETyped expr ty) =
+  pretty expr <++> line ":" <++> pretty ty
 prettyExpr _ (EDotted x) =
   line "." <+> pretty x
 prettyExpr _ (EComment c x) =

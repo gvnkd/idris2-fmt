@@ -224,14 +224,24 @@ mutual
     patDoc <- prettyExprM pat
     valDoc <- prettyExprM val
     scopeDoc <- prettyExprM scope
-    pure (keyword "let" <++> patDoc <++> equals <++> valDoc <++> keyword "in" <++> scopeDoc)
+    binderDoc <- case ty of
+          AST.EImplicit => pure patDoc
+          _             => do
+            tyDoc <- prettyExprM ty
+            pure (patDoc <++> line ":" <++> tyDoc)
+    pure (keyword "let" <++> binderDoc <++> equals <++> valDoc <++> keyword "in" <++> scopeDoc)
 
   prettyBlockLetM : {layoutOpts : _} -> List (AST.RigCount, (AST.Expr AST.Name, (AST.Expr AST.Name, AST.Expr AST.Name))) -> AST.Expr AST.Name -> PrinterM (Doc layoutOpts)
   prettyBlockLetM bs sc = do
     bindDocs <- traverse (\(r, p, t, v) => do
       pDoc <- prettyExprM p
       vDoc <- prettyExprM v
-      pure (pDoc <++> equals <++> vDoc)) bs
+      binderDoc <- case t of
+            AST.EImplicit => pure pDoc
+            _             => do
+              tyDoc <- prettyExprM t
+              pure (pDoc <++> line ":" <++> tyDoc)
+      pure (binderDoc <++> equals <++> vDoc)) bs
     scDoc <- prettyExprM sc
     let letKw = keyword "let"
         inKw = keyword "in"
@@ -490,6 +500,11 @@ mutual
     nDoc <- prettyNameM n
     xDoc <- prettyExprM x
     pure (nDoc <+> line "@" <+> xDoc)
+
+  prettyExprM (ETyped expr ty) = do
+    exprDoc <- withPrec Open (prettyExprM expr)
+    tyDoc <- withPrec Open (prettyExprM ty)
+    pure (exprDoc <++> line ":" <++> tyDoc)
 
   prettyExprM (EDotted x) = do
     xDoc <- prettyExprM x
