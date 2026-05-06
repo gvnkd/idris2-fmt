@@ -17,6 +17,10 @@ import System.File.Virtual as SFV
 
 %default covering
 
+||| Formatter version.
+versionString : String
+versionString = "0.1.0"
+
 ||| Convert base config and style options to formatter config.
 mkFmtConfig : CFG.Config -> PRM.LetStyle -> PRM.ArrowStyle -> PRM.IfStyle -> PRM.FmtConfig
 mkFmtConfig cfg ls as is = PRM.MkFmtConfig cfg ls as is
@@ -27,29 +31,36 @@ formatSource cfg ls as is src =
   map (PRM.printModuleM (mkFmtConfig cfg ls as is) . T.transformModule cfg)
     (P.parseModule src)
 
+||| Print error to stderr.
+printErr : String -> IO ()
+printErr msg = do
+  let stderr = SFV.stderr
+  _ <- SFRW.fPutStrLn stderr msg
+  pure ()
+
 ||| Process a single file: read, format, then write or check.
-||| Returns True if the file needs formatting (only meaningful in check mode).
-processFile : CFG.Config -> PRM.LetStyle -> PRM.ArrowStyle -> PRM.IfStyle -> Bool -> Bool -> String -> IO Bool
+||| Returns Just True if file needs formatting, Just False if ok, Nothing on error.
+processFile : CFG.Config -> PRM.LetStyle -> PRM.ArrowStyle -> PRM.IfStyle -> Bool -> Bool -> String -> IO (Maybe Bool)
 processFile cfg ls as is check inplace file = do
   srcResult <-
     SFRW.readFile file
   case srcResult of
     Left err => do
-      putStrLn ("Error reading " ++ file ++ ": " ++ show err)
-      pure False
+      printErr ("Error reading " ++ file ++ ": " ++ show err)
+      pure Nothing
     Right src =>
       case formatSource cfg ls as is src of
         Left err => do
-          putStrLn ("Error formatting " ++ file ++ ": " ++ show err)
-          pure False
+          printErr ("Error formatting " ++ file ++ ": " ++ show err)
+          pure Nothing
         Right output =>
           if check
             then
               if src == output
-                then pure False
+                then pure (Just False)
                 else do
                   putStrLn (file ++ " needs formatting")
-                  pure True
+                  pure (Just True)
             else
               if inplace
                 then do
@@ -57,13 +68,13 @@ processFile cfg ls as is check inplace file = do
                     SFRW.writeFile file output
                   case writeResult of
                     Left err => do
-                      putStrLn ("Error writing " ++ file ++ ": " ++ show err)
-                      pure False
+                      printErr ("Error writing " ++ file ++ ": " ++ show err)
+                      pure (Just False)
                     Right () =>
-                      pure False
+                      pure (Just False)
                 else do
                   putStr output
-                  pure False
+                  pure (Just False)
 
 ||| Merge CLI args with file config. CLI args take precedence.
 mergeArgsWithFileConfig : CF.FileConfig -> CLI.Args -> CLI.Args
@@ -86,27 +97,36 @@ mergeArgsWithFileConfig fc args =
 ||| Run the formatter with parsed CLI arguments.
 export run : CLI.Args -> IO ()
 run args =
-  if args.stdin
-    then do
-      srcResult <-
-        SFRW.fRead SFV.stdin
-      case srcResult of
-        Left err =>
-          putStrLn ("Error reading stdin: " ++ show err)
-        Right src =>
-          case formatSource args.config args.letStyle args.arrowStyle args.ifStyle src of
-            Left err =>
-              putStrLn ("Error: " ++ show err)
-            Right out =>
-              putStr out
-    else do
-      needsFmt <-
-        traverse (processFile args.config args.letStyle args.arrowStyle args.ifStyle args.check args.inplace) args.files
-      case args.check && any id needsFmt of
-        True =>
-          exitFailure
-        False =>
-          pure ()
+  if args.version
+    then
+      putStrLn versionString
+    else if args.stdin
+      then do
+        srcResult <-
+          SFRW.fRead SFV.stdin
+        case srcResult of
+          Left err =>
+            do
+              printErr ("Error reading stdin: " ++ show err)
+              exitFailure
+          Right src =>
+            case formatSource args.config args.letStyle args.arrowStyle args.ifStyle src of
+              Left err =>
+                do
+                  printErr ("Error: " ++ show err)
+                  exitFailure
+              Right out =>
+                putStr out
+      else do
+        results <-
+          traverse (processFile args.config args.letStyle args.arrowStyle args.ifStyle args.check args.inplace) args.files
+        let hasErrors = any isNothing results
+            needsFmt = any (== Just True) results
+        if hasErrors
+          then exitFailure
+          else if args.check && needsFmt
+            then exitFailure
+            else pure ()
 
 %noinline main : IO ()
 main = do

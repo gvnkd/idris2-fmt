@@ -24,14 +24,15 @@ record Args where
   check : Bool
   inplace : Bool
   stdin : Bool
+  version : Bool
 
 ||| Default args when no arguments provided.
 defaultArgs : Args
-defaultArgs = MkArgs [] CFG.defaultConfig PRM.Auto PRM.Trailing PRM.Compact False False False
+defaultArgs = MkArgs [] CFG.defaultConfig PRM.Auto PRM.Trailing PRM.Compact False False False False
 
 ||| Known boolean flags.
 knownFlags : List String
-knownFlags = ["--check", "--inplace", "--stdin"]
+knownFlags = ["--check", "--inplace", "--stdin", "--version"]
 
 ||| Known options that take a value.
 knownOptions : List String
@@ -113,6 +114,7 @@ cliParser =
   <*> checkP
   <*> inplaceP
   <*> stdinP
+  <*> versionP
   where
     checkP : T.Parser Bool
     checkP = flag' ["--check"] `H.mhelp` "Check formatting without writing"
@@ -122,6 +124,9 @@ cliParser =
 
     stdinP : T.Parser Bool
     stdinP = flag' ["--stdin"] `H.mhelp` "Read from stdin"
+
+    versionP : T.Parser Bool
+    versionP = flag' ["--version"] `H.mhelp` "Show version information"
 
     natOption : List String -> String -> T.Parser (Maybe Nat)
     natOption names desc =
@@ -170,9 +175,10 @@ parseArgs (prog :: args) =
           check = elem "--check" flags
           inplace = elem "--inplace" flags
           stdin = elem "--stdin" flags
+          version = elem "--version" flags
           config = mkConfigFromOpts opts
           (letStyle, arrowStyle, ifStyle) = mkStylesFromOpts opts
-       in Just (MkArgs files config letStyle arrowStyle ifStyle check inplace stdin)
+       in Just (MkArgs files config letStyle arrowStyle ifStyle check inplace stdin version)
 
 ||| Usage string displayed on --help or invalid input.
 export showUsage : String
