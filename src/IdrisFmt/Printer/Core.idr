@@ -593,9 +593,9 @@ mutual
   prettyImport : {opts : _} -> Import -> Doc opts
   prettyImport (MkImport _ reexport path nameAs) =
     if show nameAs /= show path
-      then (if reexport then keyword "public" <++> keyword "import" <++> line (show path) else keyword "import" <++> line (show path))
+      then (if reexport then keyword "import" <++> keyword "public" <++> line (show path) else keyword "import" <++> line (show path))
              <++> keyword "as" <++> line (show nameAs)
-      else if reexport then keyword "public" <++> keyword "import" <++> line (show path) else keyword "import" <++> line (show path)
+      else if reexport then keyword "import" <++> keyword "public" <++> line (show path) else keyword "import" <++> line (show path)
 
   ||| Extract the primary name from a declaration for grouping.
   declName : PDecl -> Maybe Name
