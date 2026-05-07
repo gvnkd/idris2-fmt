@@ -31,7 +31,7 @@ formatSourceDirect cfg src =
     Left err =>
       Left err
     Right (mod, comments) =>
-      let doc = PC.prettyModule mod
+      let doc = PC.prettyModule mod comments
       in Right (D.renderDoc cfg doc)
 
 ||| Format a single source string.

@@ -11,6 +11,7 @@ import Data.String as S
 import Text.PrettyPrint.Bernardy as PP
 import Text.PrettyPrint.Bernardy.Combinators as PPC
 import IdrisFmt.Doc as D
+import IdrisFmt.Comments as C
 
 %default covering
 
@@ -186,11 +187,21 @@ mutual
   ||| Pretty-print a PClause for a top-level definition (uses `=`).
   prettyPClauseDef : {opts : _} -> PClause -> Doc opts
   prettyPClauseDef (MkPatClause _ lhs rhs []) =
-    prettyPTerm lhs <++> equals <++> prettyPTerm rhs
+    case rhs of
+      PDoBlock _ _ stmts =>
+        (prettyPTerm lhs <++> equals <++> keyword "do") `vappend` indent 2 (vsep (map prettyPDo stmts))
+      PIfThenElse _ c t e =>
+        (prettyPTerm lhs <++> equals) `vappend` indent 2 (verticalIf c t e)
+      _ =>
+        (prettyPTerm lhs <++> equals) `vappend` indent 2 (prettyPTerm rhs)
+    where
+      verticalIf : {opts : _} -> PTerm -> PTerm -> PTerm -> Doc opts
+      verticalIf c t e =
+        (keyword "if" <++> prettyPTerm c) `vappend` indent 2 ((keyword "then" <++> prettyPTerm t) `vappend` (keyword "else" `vappend` indent 2 (prettyPTerm e)))
   prettyPClauseDef (MkPatClause _ lhs rhs ws) =
     prettyPTerm lhs <++> equals
       `vappend` indent 2 (prettyPTerm rhs
-        `vappend` indent 2 (keyword "where" `vappend` indent 2 (vsep (map prettyPDecl ws))))
+        `vappend` (keyword "where" `vappend` indent 2 (vsep (map prettyPDecl ws))))
   prettyPClauseDef (MkWithClause _ lhs wps flags _) =
     prettyPTerm lhs <++> keyword "with" <++> parens (hsep (map (prettyPTerm . withRigValue) (forget wps)))
   prettyPClauseDef (MkImpossible _ lhs) =
@@ -247,8 +258,13 @@ mutual
           line "\\" <+> prettyRig rig <+> prettyPTerm n <++> line "=>" <++> prettyPTerm sc
       prettyPrecPTerm d (PLet _ rig n ty val sc alts) =
         parenthesise' (d > startPrec) $
-          keyword "let" <++> prettyRig rig <+> prettyPTerm n <++> colon <++> prettyPTerm ty <++> equals <++> prettyPTerm val
-            <++> keyword "in" <++> prettyPTerm sc
+          let nameDoc = prettyRig rig <+> prettyPTerm n
+              valDoc = equals <++> prettyPTerm val
+              fullDoc = case ty of
+                          PImplicit _ => nameDoc <++> valDoc
+                          PInfer _    => nameDoc <++> valDoc
+                          _           => nameDoc <++> colon <++> prettyPTerm ty <++> valDoc
+          in keyword "let" <++> fullDoc <++> keyword "in" <++> prettyPTerm sc
       prettyPrecPTerm d (PCase _ _ tm cs) =
         parenthesise' (d > startPrec) $
           keyword "case" <++> prettyPTerm tm <++> keyword "of" `vappend` indent 2 (vsep (map prettyPClauseCase cs))
@@ -268,7 +284,7 @@ mutual
       prettyPrecPTerm d (PPostfixAppPartial _ fields) =
         line "." <+> hsep (map (\(fc, n) => prettyName n) fields)
       prettyPrecPTerm d (PPrefixOp _ op x) =
-        parens (prettyOpStr op.val <++> prettyPTerm x)
+        prettyOpStr op.val <++> prettyPTerm x
       prettyPrecPTerm d (PSectionL _ op x) =
         parens (prettyOpStr op.val <++> prettyPTerm x)
       prettyPrecPTerm d (PSectionR _ x op) =
@@ -301,7 +317,12 @@ mutual
         lbracket <+> pipe <+> prettyPTerm tm <+> pipe <+> rbracket
       prettyPrecPTerm d (PIfThenElse _ c t e) =
         parenthesise' (d > startPrec) $
-          keyword "if" <++> prettyPTerm c <++> keyword "then" <++> prettyPTerm t <++> keyword "else" <++> prettyPTerm e
+          ifMultiline compact vertical
+        where
+          compact : {opts : _} -> Doc opts
+          compact = keyword "if" <++> prettyPTerm c <++> keyword "then" <++> prettyPTerm t <++> keyword "else" <++> prettyPTerm e
+          vertical : {opts : _} -> Doc opts
+          vertical = (keyword "if" <++> prettyPTerm c) `vappend` indent 2 ((keyword "then" <++> prettyPTerm t) `vappend` indent 2 (keyword "else" `vappend` indent 2 (prettyPTerm e)))
       prettyPrecPTerm d (PComprehension _ ret es) =
         brackets (prettyPTerm ret <++> pipe <++> vsep (punctuate (line ",") (map prettyPDo es)))
       prettyPrecPTerm d (PRewrite _ rule tm) =
@@ -377,17 +398,20 @@ mutual
   prettyPDecl (MkWithData fc (PData doc vis treq decl)) =
     case decl of
       MkPData _ tyname tycon opts datacons =>
-        let visDoc = prettyVisSpace (collapseDefault vis)
-            tyconDoc = case tycon of
+        let tyconDoc = case tycon of
                          Nothing => prettyName tyname
                          Just t => prettyName tyname <++> colon <++> prettyPTerm t
-            header = keyword "data" <++> visDoc <+> tyconDoc <++> keyword "where"
+            header = keyword "data" <++> tyconDoc <++> keyword "where"
             cons = case datacons of
                      [] => empty
                      cs => indent 2 (vsep (map prettyConDecl cs))
-        in header `vappend` cons
+        in case collapseDefault vis of
+             Private => header `vappend` cons
+             _ => (prettyVis (collapseDefault vis) `vappend` header) `vappend` cons
       MkPLater _ tyname tycon =>
-        keyword "data" <++> prettyName tyname <++> colon <++> prettyPTerm tycon
+        case collapseDefault vis of
+          Private => keyword "data" <++> prettyName tyname <++> colon <++> prettyPTerm tycon
+          _ => prettyVis (collapseDefault vis) `vappend` keyword "data" <++> prettyName tyname <++> colon <++> prettyPTerm tycon
     where
       prettyConDecl : {opts : _} -> PTypeDecl -> Doc opts
       prettyConDecl ty =
@@ -412,23 +436,25 @@ mutual
       prettyUsing (Nothing, ty) = prettyPTerm ty
       prettyUsing (Just n, ty) = prettyName n <++> colon <++> prettyPTerm ty
   prettyPDecl (MkWithData fc (PInterface vis constraints name doc params det conName methods)) =
-    let visDoc = prettyVisSpace (collapseDefault vis)
-        constraintDocs = case constraints of
+    let constraintDocs = case constraints of
                            [] => empty
-                           cs => parens (hsep (punctuate (line ",") (map (prettyPTerm . snd) cs))) <++> keyword "=>" <++> empty
+                           cs => parens (hsep (punctuate (line ",") (map (prettyPTerm . snd) cs))) <++> keyword "=>"
         paramDocs = case params of
                       [] => empty
                       ps => hsep (map prettyBasicMultiBinder ps)
-        header = keyword "interface" <++> visDoc <+> constraintDocs <+> prettyName name <++> paramDocs <++> keyword "where"
+        header = case (constraints, params) of
+                   ([], []) => keyword "interface" <++> prettyName name <++> keyword "where"
+                   ([], _)  => keyword "interface" <++> prettyName name <++> paramDocs <++> keyword "where"
+                   (_, [])  => keyword "interface" <++> constraintDocs <++> prettyName name <++> keyword "where"
+                   (_, _)   => keyword "interface" <++> constraintDocs <++> prettyName name <++> paramDocs <++> keyword "where"
         body = case methods of
                  [] => empty
                  ms => indent 2 (vsep (map prettyPDecl ms))
-    in header `vappend` body
+    in case collapseDefault vis of
+         Private => header `vappend` body
+         _ => (prettyVis (collapseDefault vis) `vappend` header) `vappend` body
   prettyPDecl (MkWithData fc (PImplementation vis opts pass implicits constraints name params implName nusing body)) =
-    let visDoc = case vis of
-                   Private => empty
-                   _ => prettyVis vis `vappend` empty
-        implDoc = case implName of
+    let implDoc = case implName of
                     Nothing => empty
                     Just n => prettyName n <++> equals <++> empty
         constraintDocs = case constraints of
@@ -437,14 +463,20 @@ mutual
         paramDocs = case params of
                       [] => empty
                       ps => hsep (map prettyPTerm ps)
-        header = keyword "implementation" <++> implDoc <+> constraintDocs <+> prettyName name <++> paramDocs
-    in mkImplResult visDoc header body
+    in mkImplResult vis implDoc constraintDocs paramDocs name body
     where
-      mkImplResult : {opts : _} -> Doc opts -> Doc opts -> Maybe (List PDecl) -> Doc opts
-      mkImplResult vd hdr Nothing = vd `vappend` hdr
-      mkImplResult vd hdr (Just ds) =
-        let bodyDoc = indent 2 (vsep (map prettyPDecl ds))
-        in vd `vappend` (hdr <++> keyword "where" `vappend` bodyDoc)
+      mkImplResult : {opts : _} -> Visibility -> Doc opts -> Doc opts -> Doc opts -> Name -> Maybe (List PDecl) -> Doc opts
+      mkImplResult vis implDoc' cd pd nm Nothing =
+        let header = keyword "implementation" <++> implDoc' <+> cd <+> prettyName nm <++> pd
+        in case vis of
+             Private => header
+             _ => prettyVis vis `vappend` header
+      mkImplResult vis implDoc' cd pd nm (Just ds) =
+        let header = keyword "implementation" <++> implDoc' <+> cd <+> prettyName nm <++> pd
+            bodyDoc = indent 2 (vsep (map prettyPDecl ds))
+        in case vis of
+             Private => header <++> keyword "where" `vappend` bodyDoc
+             _ => (prettyVis vis `vappend` (header <++> keyword "where")) `vappend` bodyDoc
   prettyPDecl (MkWithData fc (PFixity fixData)) =
     let fixStr = case fixData.fixity of
                    InfixL => "infixl"
@@ -455,30 +487,21 @@ mutual
     in keyword fixStr <++> line (show fixData.precedence) <++> hsep ops
   prettyPDecl (MkWithData fc (PRecord doc vis treq decl)) =
     case decl of
-      MkPRecord tyname params opts conName decls =>
-        let visDoc = prettyVisSpace (collapseDefault vis)
-            paramDocs = case params of
+      MkPRecord tyname params recOpts recConName recDecls =>
+        case collapseDefault vis of
+          Private => mkRecordBody tyname params recConName recDecls
+          _ => prettyVis (collapseDefault vis) `vappend` mkRecordBody tyname params recConName recDecls
+      MkPRecordLater tyname params =>
+        let paramDocs = case params of
                           [] => empty
                           ps => hsep (map prettyPBinder ps)
-            header = keyword "record" <++> visDoc <+> prettyName tyname <++> paramDocs <++> keyword "where"
-            conDoc = case conName of
-                       Nothing => []
-                       Just c => [keyword "constructor" <++> prettyName c.val]
-            fieldDocs = map prettyFieldDecl decls
-            allBody = conDoc ++ fieldDocs
-            body = case allBody of
-                     [] => empty
-                     bs => indent 2 (vsep bs)
-        in header `vappend` body
-      MkPRecordLater tyname params =>
-        keyword "record" <++> prettyName tyname
-    where
-      prettyFieldDecl : {opts : _} -> PField -> Doc opts
-      prettyFieldDecl f =
-        let rig = f.rig
-            names = f.names
-            ty = (val f).boundType
-        in prettyRig rig <+> hsep (map (prettyName . val) names) <++> colon <++> prettyPTerm ty
+        in case collapseDefault vis of
+             Private => case params of
+                          [] => keyword "record" <++> prettyName tyname
+                          _  => keyword "record" <++> prettyName tyname <++> paramDocs
+             _ => case params of
+                     [] => prettyVis (collapseDefault vis) `vappend` keyword "record" <++> prettyName tyname
+                     _  => prettyVis (collapseDefault vis) `vappend` keyword "record" <++> prettyName tyname <++> paramDocs
   prettyPDecl (MkWithData fc (PMutual decls)) =
     keyword "mutual" `vappend` indent 2 (vsep (map prettyPDecl decls))
   prettyPDecl (MkWithData fc (PNamespace ns decls)) =
@@ -494,6 +517,30 @@ mutual
   prettyPDecl (MkWithData fc (PFail str decls)) =
     line "/* failed declaration */"
 
+  prettyFieldDecl : {opts : _} -> PField -> Doc opts
+  prettyFieldDecl f =
+    let rig = f.rig
+        names = f.names
+        ty = (val f).boundType
+    in prettyRig rig <+> hsep (map (prettyName . val) names) <++> colon <++> prettyPTerm ty
+
+  mkRecordBody : {opts : _} -> Name -> List PBinder -> Maybe (WithDoc (AddFC Name)) -> List PField -> Doc opts
+  mkRecordBody tyname params recConName recDecls =
+    let paramDocs = case params of
+                      [] => empty
+                      ps => hsep (map prettyPBinder ps)
+        header = case params of
+                   [] => keyword "record" <++> prettyName tyname <++> keyword "where"
+                   _  => keyword "record" <++> prettyName tyname <++> paramDocs <++> keyword "where"
+        conDoc = case recConName of
+                   Nothing => []
+                   Just c => [keyword "constructor" <++> prettyName c.val]
+        fieldDocs = map prettyFieldDecl recDecls
+        allBody = conDoc ++ fieldDocs
+    in case allBody of
+         [] => header
+         (d :: ds) => header `vappend` indent 2 (vsep (d :: ds))
+
   ||| Pretty-print an Import.
   export
   prettyImport : {opts : _} -> Import -> Doc opts
@@ -503,11 +550,103 @@ mutual
              <++> keyword "as" <++> line (show nameAs)
       else if reexport then keyword "public" <++> keyword "import" <++> line (show path) else keyword "import" <++> line (show path)
 
-  ||| Pretty-print a full Module.
+  ||| Extract the primary name from a declaration for grouping.
+  declName : PDecl -> Maybe Name
+  declName (MkWithData _ (PClaim claimData)) =
+    case claimData.type.nameList of
+      [] => Nothing
+      (n :: _) => Just n
+  declName (MkWithData _ (PDef [])) = Nothing
+  declName (MkWithData _ (PDef (MkPatClause _ lhs _ _ :: _))) =
+    extractAppName lhs
+  declName (MkWithData _ (PDef (MkWithClause _ lhs _ _ _ :: _))) =
+    extractAppName lhs
+  declName (MkWithData _ (PDef (MkImpossible _ lhs :: _))) =
+    extractAppName lhs
+  declName _ = Nothing
+
+  ||| Extract the function name from a PTerm (recursively through PApp).
+  extractAppName : PTerm -> Maybe Name
+  extractAppName (PRef _ n) = Just n
+  extractAppName (PApp _ f _) = extractAppName f
+  extractAppName (PAs _ _ n _) = Just n
+  extractAppName _ = Nothing
+
+  ||| Extract start line from FC.
+  fcStartLine : FC -> Nat
+  fcStartLine (MkFC _ start _) = cast (fst start)
+  fcStartLine (MkVirtualFC _ start _) = cast (fst start)
+  fcStartLine EmptyFC = 0
+
+  ||| Extract start line from a declaration.
+  declLine : PDecl -> Nat
+  declLine d = fcStartLine (WithData.get "fc" d)
+
+  ||| Pretty-print a Comment.
+  prettyComment : {opts : _} -> C.Comment -> Doc opts
+  prettyComment (C.MkComment C.LineComment content _ _) =
+    line ("-- " ++ content)
+  prettyComment (C.MkComment C.BlockComment content _ _) =
+    let ls = S.lines content
+    in case ls of
+         [] => line "{- -}"
+         [single] => line ("{- " ++ single ++ " -}")
+         (l :: ls') => vsep (line ("{- " ++ l) :: go ls')
+    where
+      go : List String -> List (Doc opts)
+      go [] = []
+      go [last] = [line (last ++ " -}")]
+      go (m :: rest) = line m :: go rest
+  prettyComment (C.MkComment C.DocComment content _ _) =
+    line ("||| " ++ content)
+
+  ||| A module item is either a declaration or a comment.
+  data Item = IDecl PDecl | IComment C.Comment
+
+  ||| Extract line number from an item.
+  itemLine : Item -> Nat
+  itemLine (IDecl d) = declLine d
+  itemLine (IComment c) = c.line
+
+  ||| Compare items by line number.
+  itemCompare : Item -> Item -> Ordering
+  itemCompare x y = compare (itemLine x) (itemLine y)
+
+  ||| Render a single module item.
+  prettyItem : {opts : _} -> Item -> Doc opts
+  prettyItem (IDecl d) = prettyPDecl d
+  prettyItem (IComment c) = prettyComment c
+
+  ||| Decide if we need a blank line between two consecutive items.
+  needsBlank : Item -> Item -> Bool
+  needsBlank (IComment _) _ = False
+  needsBlank _ (IComment _) = False
+  needsBlank (IDecl d1) (IDecl d2) =
+    not (declName d1 == declName d2 && declName d1 /= Nothing)
+
+  ||| Interleave items with blank lines where needed.
+  interleaveItems : {opts : _} -> List Item -> List (Doc opts)
+  interleaveItems [] = []
+  interleaveItems [item] = [prettyItem item]
+  interleaveItems (item1 :: item2 :: rest) =
+    if needsBlank item1 item2
+      then prettyItem item1 :: line "" :: interleaveItems (item2 :: rest)
+      else prettyItem item1 :: interleaveItems (item2 :: rest)
+
+  ||| Merge declarations and comments by source line.
+  mergeItems : List PDecl -> List C.Comment -> List Item
+  mergeItems decls comments =
+    L.sortBy itemCompare (map IDecl decls ++ map IComment comments)
+
+  ||| Pretty-print a full Module with comments.
   export
-  prettyModule : {opts : _} -> Module -> Doc opts
-  prettyModule mod =
+  prettyModule : {opts : _} -> Module -> List C.Comment -> Doc opts
+  prettyModule mod comments =
     let header = keyword "module" <++> line (show (IS.Module.moduleNS mod))
         imps = vsep (map prettyImport (IS.Module.imports mod))
-        decls = vsep (map prettyPDecl (IS.Module.decls mod))
-    in vsep [header, line "", imps, line "", decls]
+        items = mergeItems (IS.Module.decls mod) comments
+        declDocs = interleaveItems items
+        decls = vsep declDocs
+    in case (IS.Module.imports mod) of
+         [] => (header `vappend` line "") `vappend` decls
+         _  => (header `vappend` imps) `vappend` (line "" `vappend` decls)
