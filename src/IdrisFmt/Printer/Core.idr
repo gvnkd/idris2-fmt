@@ -254,8 +254,55 @@ mutual
           braces (keyword "default" <++> prettyPTerm t <++> prettyRig rig <+> prettyName n <++> colon <++> prettyPTerm arg)
             <++> line "->" <++> prettyPrecPTerm arrowPrec ret
       prettyPrecPTerm d (PLam _ rig _ n ty sc) =
-        parenthesise' (d > startPrec) $
-          line "\\" <+> prettyRig rig <+> prettyPTerm n <++> line "=>" <++> prettyPTerm sc
+        case tryTupleSection n sc of
+          Just doc => doc
+          Nothing =>
+            parenthesise' (d > startPrec) $
+              line "\\" <+> prettyRig rig <+> prettyPTerm n <++> line "=>" <++> prettyPTerm sc
+        where
+          ||| Check if a name is a tuple section variable.
+          isSectionVarName : Name -> Bool
+          isSectionVarName (MN name _) =
+            S.isPrefixOf "__leftTupleSection" name || S.isPrefixOf "__infixTupleSection" name
+          isSectionVarName _ = False
+
+          ||| Extract name from a PRef.
+          getRefName : PTerm -> Maybe Name
+          getRefName (PRef _ n') = Just n'
+          getRefName _ = Nothing
+
+          ||| Check if a term is a reference to one of the given section variables.
+          isSectionVar : PTerm -> List Name -> Bool
+          isSectionVar (PRef _ n') vars = n' `elem` vars
+          isSectionVar _ _ = False
+
+          ||| Build tuple section syntax from a pair tree and section variables.
+          buildTupleSection : {opts : _} -> List Name -> PTerm -> Maybe (Doc opts)
+          buildTupleSection vars (PPair _ l r) =
+            let lIsVar = isSectionVar l vars
+                rIsVar = isSectionVar r vars
+                lDoc = prettyPTerm l
+                rDoc = prettyPTerm r
+            in case (lIsVar, rIsVar) of
+                  (True, True) => Just (parens (line ","))
+                  (True, False) => Just (parens (line "," <+> rDoc))
+                  (False, True) => Just (parens (lDoc <+> line ","))
+                  (False, False) => Nothing
+          buildTupleSection vars (PLam _ _ _ pat _ sc') =
+            case getRefName pat of
+              Just n' =>
+                if isSectionVarName n'
+                  then buildTupleSection (n' :: vars) sc'
+                  else Nothing
+              Nothing => Nothing
+          buildTupleSection _ _ = Nothing
+
+          ||| Try to resugar a tuple section from a lambda.
+          tryTupleSection : {opts : _} -> PTerm -> PTerm -> Maybe (Doc opts)
+          tryTupleSection pat body =
+            do varName <- getRefName pat
+               guard (isSectionVarName varName)
+               buildTupleSection [varName] body
       prettyPrecPTerm d (PLet _ rig n ty val sc alts) =
         parenthesise' (d > startPrec) $
           let nameDoc = prettyRig rig <+> prettyPTerm n
