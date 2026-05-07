@@ -818,6 +818,19 @@ parseModule src =
            withBlanks = insertBlanks merged
          in Right withBlanks
 
+||| Parse a full module from source text, returning the raw Idris2 Module and extracted comments.
+export parseModuleDirect : String -> Either ParseError (IS.Module, List C.Comment)
+parseModuleDirect src =
+  let
+    origin = CFC.Virtual CFC.Interactive
+    result = PS.runParser origin Nothing src (IP.prog origin)
+  in case result of
+       Left err =>
+         Left (fromError err)
+       Right (_, (state, mod)) =>
+         let comments = extractComments src state
+         in Right (mod, comments)
+
 ||| Parse a single expression from source text.
 export parseExpr : String -> Either ParseError (AST.Expr AST.Name)
 parseExpr src =

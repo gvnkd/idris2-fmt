@@ -11,6 +11,7 @@ import IdrisFmt.IndentFix as IF
 import IdrisFmt.Parser as P
 import IdrisFmt.Printer as PR
 import IdrisFmt.Printer.Complete as PRM
+import IdrisFmt.Printer.Core as PC
 import IdrisFmt.Transform as T
 import System
 import System.File.ReadWrite as SFRW
@@ -22,6 +23,16 @@ import IdrisFmt.Version as V
 ||| Convert base config and style options to formatter config.
 mkFmtConfig : CFG.Config -> PRM.LetStyle -> PRM.ArrowStyle -> PRM.IfStyle -> PRM.FmtConfig
 mkFmtConfig cfg ls as is = PRM.MkFmtConfig cfg ls as is
+
+||| Format a single source string using the new direct PTerm printer.
+formatSourceDirect : CFG.Config -> String -> Either P.ParseError String
+formatSourceDirect cfg src =
+  case P.parseModuleDirect src of
+    Left err =>
+      Left err
+    Right (mod, comments) =>
+      let doc = PC.prettyModule mod
+      in Right (D.renderDoc cfg doc)
 
 ||| Format a single source string.
 formatSource : CFG.Config -> PRM.LetStyle -> PRM.ArrowStyle -> PRM.IfStyle -> String -> Either P.ParseError String
@@ -57,7 +68,7 @@ processFile cfg ls as is fixSrc check inplace file = do
       printErr ("Error reading " ++ file ++ ": " ++ show err)
       pure Nothing
     Right src =>
-      case formatSourceWithFix cfg ls as is fixSrc src of
+      case formatSourceDirect cfg src of
         Left err => do
           printErr ("Error formatting " ++ file ++ ": " ++ show err)
           pure Nothing
@@ -118,7 +129,7 @@ run args =
               printErr ("Error reading stdin: " ++ show err)
               exitFailure
           Right src =>
-            case formatSourceWithFix args.config args.letStyle args.arrowStyle args.ifStyle args.fixIndentation src of
+            case formatSourceDirect args.config src of
               Left err =>
                 do
                   printErr ("Error: " ++ show err)
