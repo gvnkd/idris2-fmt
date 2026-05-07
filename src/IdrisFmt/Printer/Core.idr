@@ -254,22 +254,41 @@ mutual
           braces (keyword "default" <++> prettyPTerm t <++> prettyRig rig <+> prettyName n <++> colon <++> prettyPTerm arg)
             <++> line "->" <++> prettyPrecPTerm arrowPrec ret
       prettyPrecPTerm d (PLam _ rig _ n ty sc) =
-        case tryTupleSection n sc of
+        case tryLamCase n sc of
           Just doc => doc
           Nothing =>
-            parenthesise' (d > startPrec) $
-              line "\\" <+> prettyRig rig <+> prettyPTerm n <++> line "=>" <++> prettyPTerm sc
+            case tryTupleSection n sc of
+              Just doc => doc
+              Nothing =>
+                parenthesise' (d > startPrec) $
+                  line "\\" <+> prettyRig rig <+> prettyPTerm n <++> line "=>" <++> prettyPTerm sc
         where
+          ||| Extract name from a PRef.
+          getRefName : PTerm -> Maybe Name
+          getRefName (PRef _ n') = Just n'
+          getRefName _ = Nothing
+
+          ||| Check if a name is a lambda-case variable.
+          isLamCaseVarName : Name -> Bool
+          isLamCaseVarName (MN name _) = S.isPrefixOf "lcase" name
+          isLamCaseVarName _ = False
+
+          ||| Try to resugar a lambda-case from a lambda.
+          tryLamCase : {opts : _} -> PTerm -> PTerm -> Maybe (Doc opts)
+          tryLamCase pat body =
+            do varName <- getRefName pat
+               guard (isLamCaseVarName varName)
+               case body of
+                 PCase _ _ (PRef _ scrutName) clauses =>
+                   if scrutName == varName
+                     then Just (line "\\" <+> keyword "case" `vappend` indent 2 (vsep (map prettyPClauseCase clauses)))
+                     else Nothing
+                 _ => Nothing
           ||| Check if a name is a tuple section variable.
           isSectionVarName : Name -> Bool
           isSectionVarName (MN name _) =
             S.isPrefixOf "__leftTupleSection" name || S.isPrefixOf "__infixTupleSection" name
           isSectionVarName _ = False
-
-          ||| Extract name from a PRef.
-          getRefName : PTerm -> Maybe Name
-          getRefName (PRef _ n') = Just n'
-          getRefName _ = Nothing
 
           ||| Check if a term is a reference to one of the given section variables.
           isSectionVar : PTerm -> List Name -> Bool
@@ -338,7 +357,7 @@ mutual
       prettyPrecPTerm d (PAutoApp _ f a) =
         parenthesise' (d > startPrec) $ prettyPrecPTerm leftAppPrec f <++> "@" <+> braces (prettyPTerm a)
       prettyPrecPTerm d (PPostfixApp _ rec fields) =
-        prettyPTerm rec <+> hsep (map (\(fc, n) => prettyName n) fields)
+        prettyPTerm rec <+> hcat (map (\(fc, n) => prettyName n) fields)
       prettyPrecPTerm d (PPostfixAppPartial _ fields) =
         line "." <+> hsep (map (\(fc, n) => prettyName n) fields)
       prettyPrecPTerm d (PPrefixOp _ op x) =
@@ -447,10 +466,12 @@ mutual
   ||| Pretty-print a PDecl.
   export
   prettyPDecl : {opts : _} -> PDecl -> Doc opts
-  prettyPDecl (MkWithData fc (PClaim claimData)) =
-    let ty = claimData.type
-        ns = map prettyName ty.nameList
-    in hsep ns <++> colon <++> prettyPTerm ty.val.type
+  prettyPDecl (MkWithData fc (PClaim (MkPClaim rig vis opts ty))) =
+    let ns = map prettyName ty.nameList
+        sigDoc = hsep ns <++> colon <++> prettyPTerm ty.val.type
+    in case vis of
+         Private => sigDoc
+         _       => prettyVis vis `vappend` sigDoc
   prettyPDecl (MkWithData fc (PDef clauses)) =
     vsep (map prettyPClauseDef clauses)
   prettyPDecl (MkWithData fc (PData doc vis treq decl)) =
