@@ -303,6 +303,10 @@ prettyParamDoc _ _ (Just n) arg =
 prettyParamDoc _ _ Nothing arg =
   pretty arg
 
+piArrow : AST.PiInfo (AST.Expr AST.Name) -> Maybe AST.Name -> String
+piArrow AutoImplicit Nothing = "=>"
+piArrow _ _ = "->"
+
 prettySinglePi : {opts : _}
                  -> Prec
                  -> List
@@ -314,9 +318,10 @@ prettySinglePi : {opts : _}
                  -> AST.Expr AST.Name
                  -> Doc opts
 prettySinglePi d [(rig, (info, (n, arg)))] res =
-  parenthesise (d > Open)
+  let arrow = piArrow info n
+  in parenthesise (d > Open)
   $
-    hangSep' 2 (prettyParamDoc rig info n arg) (line "->" <++> pretty res)
+    hangSep' 2 (prettyParamDoc rig info n arg) (line arrow <++> pretty res)
 prettySinglePi _ _ res =
   pretty res
 
@@ -332,12 +337,6 @@ piParamDocs [] =
 piParamDocs ((rig, (info, (n, arg))) :: rest) =
   prettyParamDoc rig info n arg :: piParamDocs rest
 
-piAlignedParams : {opts : _} -> Nat -> List (Doc opts) -> List (Doc opts)
-piAlignedParams _ [] =
-  []
-piAlignedParams w (p :: rest) =
-  (Measure.padTo w p <++> line "->") :: piAlignedParams w rest
-
 prettyPiBlock : {opts : _}
                 -> Prec
                 -> List
@@ -350,22 +349,18 @@ prettyPiBlock : {opts : _}
                 -> Doc opts
 prettyPiBlock d ps res =
   let
-    paramDocs : List (Doc opts)     = piParamDocs ps
-    maxParamW                       = Measure.maxWidth
-                                        (map Measure.measureWidth paramDocs)
-    alignedParams : List (Doc opts) = piAlignedParams maxParamW paramDocs
-    vert                            = case paramDocs of
-                                        [] =>
-                                          pretty res
-                                        (p :: rest) =>
-                                          vsep
-                                            (p
-                                             ::
-                                               map (\q => line "-> " <+> q)
-                                                 (rest ++ [pretty res]))
-    horiz                           = hsep
-                                        (intersperse (line "->")
-                                           (paramDocs ++ [pretty res]))
+    paramItems : List (Doc opts, String)
+      = map (\(rig, (info, (n, arg))) =>
+               (prettyParamDoc rig info n arg, piArrow info n)) ps
+    paramDocs = map fst paramItems
+    arrows = map snd paramItems
+    vert = case paramDocs of
+              [] =>
+                pretty res
+              (p :: rest) =>
+                let arrowDocs = map (\a => line (a ++ " ")) arrows
+                in vsep (p :: zipWith (<+>) arrowDocs (rest ++ [pretty res]))
+    horiz = hsep (concatMap (\(p, a) => [p, line a]) paramItems ++ [pretty res])
   in parenthesise (d > Open) $ horiz <|> vert
 
 prettySingleLet : {opts : _}

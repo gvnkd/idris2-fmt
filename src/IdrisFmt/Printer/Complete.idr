@@ -258,17 +258,17 @@ mutual
       Nothing => prettyInlineLetM rig pat ty val scope
 
   -- Pi formatting variants
+  piArrowM : AST.PiInfo (AST.Expr AST.Name) -> Maybe AST.Name -> String
+  piArrowM AutoImplicit Nothing = "=>"
+  piArrowM _ _ = "->"
+
   prettySinglePiM : {layoutOpts : _} -> List (AST.RigCount, (AST.PiInfo (AST.Expr AST.Name), (Maybe AST.Name, AST.Expr AST.Name))) -> AST.Expr AST.Name -> PrinterM (Doc layoutOpts)
   prettySinglePiM [(rig, (info, (n, arg)))] res = do
-    d <- getPrec
-    arrowStyle <- asks (\ctx => case ctx.config of MkFmtConfig _ _ style _ => style)
-    argDoc <- prettyParamM rig info n arg
+    let arrow = piArrowM info n
     resDoc <- withPrec Open (prettyExprM res)
-    let trailingDoc = hangSep' 2 argDoc (line "->" <++> resDoc)
-        leadingDoc = vsep [argDoc, indent 2 (line "->" <++> resDoc)]
-    if arrowStyle == Trailing
-      then pure (parenthesise (d > Open) trailingDoc)
-      else pure (parenthesise (d > Open) leadingDoc)
+    paramDoc <- prettyParamM rig info n arg
+    d <- getPrec
+    pure (parenthesise (d > Open) (hangSep' 2 paramDoc (line arrow <++> resDoc)))
   prettySinglePiM _ res = withPrec Open (prettyExprM res)
 
   piParamDocsM : {layoutOpts : _} -> List (AST.RigCount, (AST.PiInfo (AST.Expr AST.Name), (Maybe AST.Name, AST.Expr AST.Name))) -> PrinterM (List (Doc layoutOpts))
@@ -278,26 +278,28 @@ mutual
     restDocs <- piParamDocsM rest
     pure (doc :: restDocs)
 
-  piAlignedParamsM : {layoutOpts : _} -> Nat -> List (Doc layoutOpts) -> List (Doc layoutOpts)
-  piAlignedParamsM _ [] = []
-  piAlignedParamsM w (p :: rest) =
-    (Measure.padTo w p <++> line "->") :: piAlignedParamsM w rest
-
   prettyPiBlockM : {layoutOpts : _} -> List (AST.RigCount, (AST.PiInfo (AST.Expr AST.Name), (Maybe AST.Name, AST.Expr AST.Name))) -> AST.Expr AST.Name -> PrinterM (Doc layoutOpts)
   prettyPiBlockM ps res = do
     d <- getPrec
     arrowStyle <- asks (\ctx => case ctx.config of MkFmtConfig _ _ style _ => style)
-    paramDocs <- piParamDocsM ps
-    let maxParamW = Measure.maxWidth (map Measure.measureWidth paramDocs)
-        alignedParams = piAlignedParamsM maxParamW paramDocs
+    paramItems : List (Doc layoutOpts, String)
+      <- traverse (\(rig, (info, (n, arg))) => do
+           doc <- prettyParamM rig info n arg
+           pure (doc, piArrowM info n)) ps
+    let paramDocs : List (Doc layoutOpts) = map (\(d, _) => d) paramItems
+        arrows : List String = map (\(_, a) => a) paramItems
     resDoc <- withPrec Open (prettyExprM res)
     let vert = case paramDocs of
                  [] => resDoc
-                 (p :: rest) => vsep (p :: map (\q => line "-> " <+> q) (rest ++ [resDoc]))
-        horiz = hsep (intersperse (line "->") (paramDocs ++ [resDoc]))
+                 (p :: rest) =>
+                   let arrowDocs = map (\a => line (a ++ " ")) arrows
+                   in vsep (p :: zipWith (<+>) arrowDocs (rest ++ [resDoc]))
+        horiz = hsep (concatMap (\(p, a) => [p, line a]) paramItems ++ [resDoc])
         leadingParams = case paramDocs of
                           [] => [resDoc]
-                          (p :: rest) => p :: map (\q => line "-> " <+> q) (rest ++ [resDoc])
+                          (p :: rest) =>
+                            let arrowDocs = map (\a => line (a ++ " ")) arrows
+                            in p :: zipWith (<+>) arrowDocs (rest ++ [resDoc])
     if arrowStyle == Trailing
       then pure (parenthesise (d > Open) (horiz <|> vert))
       else pure (parenthesise (d > Open) (vsep leadingParams))
