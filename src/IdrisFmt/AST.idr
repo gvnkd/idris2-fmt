@@ -88,6 +88,14 @@ record FixityDecl where
   names : List Name
 
 mutual
+  ||| Parameter declaration (for parameters/using blocks).
+  public export
+  record ParamDecl (nm : Type) where
+    constructor MkParamDecl
+    piInfo : PiInfo (Expr nm)
+    rig : RigCount
+    name : nm
+    type : Expr nm
   ||| Top-level declaration AST.
   public export
   data Decl : Type -> Type where
@@ -103,8 +111,8 @@ mutual
     DFixity : FixityDecl -> Decl nm
     DNamespace : List String -> List (Decl nm) -> Decl nm
     DMutual : List (Decl nm) -> Decl nm
-    DParams : List (nm, Maybe (Expr nm)) -> List (Decl nm) -> Decl nm
-    DUsing : List (Maybe nm, Expr nm) -> List (Decl nm) -> Decl nm
+    DParams : List (ParamDecl nm) -> List (Decl nm) -> Decl nm
+    DUsing : List (ParamDecl nm) -> List (Decl nm) -> Decl nm
     DDirective : String -> Decl nm
     DBuiltin : String -> nm -> Decl nm
     DTransform : String -> Expr nm -> Expr nm -> Decl nm

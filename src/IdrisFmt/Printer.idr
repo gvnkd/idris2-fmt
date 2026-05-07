@@ -65,9 +65,9 @@ implNameDoc : {opts : _} -> Maybe AST.Name -> Doc opts
 
 fnOptDoc : {opts : _} -> AST.FnOpt -> Doc opts
 
-paramDoc : {opts : _} -> (AST.Name, Maybe (AST.Expr AST.Name)) -> Doc opts
+paramDeclDoc : {opts : _} -> AST.ParamDecl AST.Name -> Doc opts
 
-usingDoc : {opts : _} -> (Maybe AST.Name, AST.Expr AST.Name) -> Doc opts
+usingDoc : {opts : _} -> AST.ParamDecl AST.Name -> Doc opts
 
 conNameDoc : {opts : _} -> AST.Name -> Doc opts
 
@@ -207,14 +207,6 @@ fnOptDoc AST.TCInline =
   keyword "%tcinline"
 fnOptDoc AST.NoInline =
   keyword "%noinline"
-paramDoc (n, Nothing) =
-  pretty n
-paramDoc (n, Just ty) =
-  pretty n <++> colon <++> pretty ty
-usingDoc (Nothing, ty) =
-  pretty ty
-usingDoc (Just n, ty) =
-  pretty n <++> colon <++> pretty ty
 conNameDoc n =
   pretty n
 branchDoc kw (EDo _ stmts) =
@@ -302,6 +294,11 @@ prettyParamDoc _ _ (Just n) arg =
   parens (pretty n <++> colon <++> pretty arg)
 prettyParamDoc _ _ Nothing arg =
   pretty arg
+
+paramDeclDoc (AST.MkParamDecl info rig n ty) =
+  prettyParamDoc rig info (Just n) ty
+usingDoc =
+  paramDeclDoc
 
 piArrow : AST.PiInfo (AST.Expr AST.Name) -> Maybe AST.Name -> String
 piArrow AutoImplicit Nothing = "=>"
@@ -661,10 +658,8 @@ prettyDecl _ (DNamespace ns decls) =
 prettyDecl _ (DMutual decls) =
   keyword "mutual" `vappend` indent 2 (vsep (map pretty decls))
 prettyDecl _ (DParams params decls) =
-  let header = keyword "parameters" <++> parens (hsep (map paramDoc params))
-    in header
-       `vappend`
-         indent 2 (keyword "where" `vappend` indent 2 (vsep (map pretty decls)))
+  let header = keyword "parameters" <++> hsep (map paramDeclDoc params)
+    in header `vappend` indent 2 (vsep (map pretty decls))
 prettyDecl _ (DUsing usings decls) =
   keyword "using"
   <++>

@@ -148,6 +148,16 @@ mutual
                                 -> List (AST.Name, AST.Expr AST.Name)
   translateBasicMultiBinder (MkBasicMultiBinder rig names ty) =
     map (\n => (translateName (val n), translatePTerm ty)) (forget names)
+  ||| Translate PBinder to list of ParamDecl.
+  translatePBinder : IS.PBinder' CN.Name -> List (AST.ParamDecl AST.Name)
+  translatePBinder (MkPBinder info (MkBasicMultiBinder rig names ty)) =
+    map (\n =>
+           AST.MkParamDecl
+             (translatePiInfo info)
+             (translateRig rig)
+             (translateName (val n))
+             (translatePTerm ty))
+      (forget names)
   ||| Translate PiInfo from compiler to formatter.
   translatePiInfo : Core.TT.Binder.PiInfo IS.PTerm
                       -> AST.PiInfo (AST.Expr AST.Name)
@@ -568,16 +578,25 @@ mutual
                IS.PParameters params decls =>
                  let ps = case params of
                             Left pbs =>
-                              concatMap translatePlainBinder (forget pbs)
+                              map (\pb =>
+                                     let n : WithFC CN.Name = WithData.get "name" pb
+                                         tm : IS.PTerm = val pb
+                                       in AST.MkParamDecl
+                                            AST.Explicit
+                                            AST.RigW
+                                            (translateName (val n))
+                                            (translatePTerm tm))
+                                (forget pbs)
                             Right pbs =>
-                              map (\(n, t) => (n, Just t))
-                                (concatMap (translateBasicMultiBinder . bind)
-                                   (forget pbs))
+                              concatMap translatePBinder (forget pbs)
                    in AST.DParams ps (map (snd . translatePDecl) decls)
                IS.PUsing usings decls =>
                  let us = map
                             (\(mn, tm) =>
-                               (map translateName mn, translatePTerm tm))
+                               let n = maybe Nothing (Just . translateName) mn
+                                 in AST.MkParamDecl AST.Explicit AST.RigW
+                                      (fromMaybe (AST.UN "_") n)
+                                      (translatePTerm tm))
                             usings
                    in AST.DUsing us (map (snd . translatePDecl) decls)
                IS.PInterface vis constraints name doc params det conName

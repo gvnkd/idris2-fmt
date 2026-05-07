@@ -637,12 +637,12 @@ mutual
     declsDocs <- traverse prettyDeclM decls
     pure (keyword "mutual" `vappend` indent 2 (vsep declsDocs))
   prettyDeclM (DParams params decls) = do
-    paramsDocs <- traverse paramDocM params
+    paramsDocs <- traverse paramDeclDocM params
     declsDocs <- traverse prettyDeclM decls
-    let header = keyword "parameters" <++> parens (hsep paramsDocs)
-    pure (header `vappend` indent 2 (keyword "where" `vappend` indent 2 (vsep declsDocs)))
+    let header = keyword "parameters" <++> hsep paramsDocs
+    pure (header `vappend` indent 2 (vsep declsDocs))
   prettyDeclM (DUsing usings decls) = do
-    usingsDocs <- traverse usingDocM usings
+    usingsDocs <- traverse paramDeclDocM usings
     declsDocs <- traverse prettyDeclM decls
     pure (keyword "using" <++> parens (hsep usingsDocs) <++> keyword "where" `vappend` indent 2 (vsep declsDocs))
   prettyDeclM (DDirective s) = pure (keyword "%" <+> line s)
@@ -890,19 +890,13 @@ mutual
   fnOptDocM AST.TCInline = keyword "%tcinline"
   fnOptDocM AST.NoInline = keyword "%noinline"
 
-  paramDocM : {layoutOpts : _} -> (AST.Name, Maybe (AST.Expr AST.Name)) -> PrinterM (Doc layoutOpts)
-  paramDocM (n, Nothing) = prettyNameM n
-  paramDocM (n, Just ty) = do
-    nDoc <- prettyNameM n
-    tyDoc <- prettyExprM ty
-    pure (nDoc <++> colon <++> tyDoc)
+  paramDeclDocM : {layoutOpts : _} -> AST.ParamDecl AST.Name -> PrinterM (Doc layoutOpts)
+  paramDeclDocM (AST.MkParamDecl info rig n ty) =
+    prettyParamM rig info (Just n) ty
 
-  usingDocM : {layoutOpts : _} -> (Maybe AST.Name, AST.Expr AST.Name) -> PrinterM (Doc layoutOpts)
-  usingDocM (Nothing, ty) = prettyExprM ty
-  usingDocM (Just n, ty) = do
-    nDoc <- prettyNameM n
-    tyDoc <- prettyExprM ty
-    pure (nDoc <++> colon <++> tyDoc)
+  usingDocM : {layoutOpts : _} -> AST.ParamDecl AST.Name -> PrinterM (Doc layoutOpts)
+  usingDocM =
+    paramDeclDocM
 
   visibilityDocM : {layoutOpts : _} -> AST.Visibility -> Doc layoutOpts
   visibilityDocM AST.Private = empty
