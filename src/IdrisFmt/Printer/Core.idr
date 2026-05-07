@@ -311,7 +311,18 @@ mutual
                           PImplicit _ => nameDoc <++> valDoc
                           PInfer _    => nameDoc <++> valDoc
                           _           => nameDoc <++> colon <++> prettyPTerm ty <++> valDoc
-          in keyword "let" <++> fullDoc <++> keyword "in" <++> prettyPTerm sc
+              letBody = case alts of
+                          [] => fullDoc
+                          _  => fullDoc `vappend` vsep (map prettyAlt alts)
+          in keyword "let" <++> letBody <++> keyword "in" <++> prettyPTerm sc
+        where
+          prettyAlt : {opts : _} -> PClause -> Doc opts
+          prettyAlt (MkPatClause _ lhs rhs _) =
+            line "|" <++> prettyPTerm lhs <++> keyword "=>" <++> prettyPTerm rhs
+          prettyAlt (MkImpossible _ lhs) =
+            line "|" <++> prettyPTerm lhs <++> keyword "impossible"
+          prettyAlt (MkWithClause _ lhs wps flags _) =
+            line "|" <++> prettyPTerm lhs <++> keyword "with" <++> parens (hsep (map (prettyPTerm . withRigValue) (forget wps)))
       prettyPrecPTerm d (PCase _ _ tm cs) =
         parenthesise' (d > startPrec) $
           keyword "case" <++> prettyPTerm tm <++> keyword "of" `vappend` indent 2 (vsep (map prettyPClauseCase cs))
