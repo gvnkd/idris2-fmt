@@ -4,6 +4,7 @@ import public Idris.Syntax as IS
 import public Core.Name as CN
 import public Core.FC as CFC
 import public Algebra.ZeroOneOmega
+import public Libraries.Data.WithDefault
 import Data.List as L
 import Data.List1
 import Data.String as S
@@ -16,6 +17,22 @@ import IdrisFmt.Doc as D
 ||| Helper to render a Name to String for Doc.
 nameStr : Name -> String
 nameStr n = show n
+
+||| Check if a string is an operator symbol.
+isOpSymbol : String -> Bool
+isOpSymbol s =
+  let chars = unpack s
+  in case chars of
+       [] => False
+       _ => all (\c => c `elem` unpack "!#$%&*+./<=>?@\\^|-~:") chars
+
+||| Pretty-print a Name, parenthesizing if it's an operator.
+prettyNameOp : {opts : _} -> Name -> Doc opts
+prettyNameOp n =
+  let s = nameStr n
+  in if isOpSymbol s
+       then parens (line s)
+       else line s
 
 ||| Pretty-print an Idris2 Name.
 export
@@ -40,6 +57,7 @@ punctuate : {opts : _} -> Doc opts -> List (Doc opts) -> List (Doc opts)
 punctuate _ [] = []
 punctuate _ [d] = [d]
 punctuate p (d :: ds) = (d <+> p) :: punctuate p ds
+
 Prec' : Type
 Prec' = Nat
 
@@ -101,7 +119,38 @@ prettyDirective (Logging Nothing) = "logging off"
 prettyDirective (Logging (Just _)) = "logging on"
 prettyDirective _ = "/* unknown directive */"
 
+||| Render a visibility keyword.
+prettyVis : {opts : _} -> Visibility -> Doc opts
+prettyVis Private = empty
+prettyVis Export = keyword "export"
+prettyVis Public = keyword "public" <++> keyword "export"
+
+||| Render visibility with trailing space if not Private.
+prettyVisSpace : {opts : _} -> Visibility -> Doc opts
+prettyVisSpace Private = empty
+prettyVisSpace v = prettyVis v <++> empty
+
+||| Render a BasicMultiBinder.
+prettyBasicMultiBinder : {opts : _} -> BasicMultiBinder -> Doc opts
+prettyBasicMultiBinder (MkBasicMultiBinder rig names ty) =
+  let nameDoc = prettyRig rig <+> hsep (map (prettyName . val) (forget names))
+  in case ty of
+       PImplicit _ => nameDoc
+       PInfer _    => nameDoc
+       _           => nameDoc <++> colon <++> line (show ty)
+
 mutual
+  ||| Render a PBinder as a parameter doc.
+  prettyPBinder : {opts : _} -> PBinder -> Doc opts
+  prettyPBinder (MkPBinder Implicit bind) =
+    braces (prettyBasicMultiBinder bind)
+  prettyPBinder (MkPBinder Explicit bind) =
+    parens (prettyBasicMultiBinder bind)
+  prettyPBinder (MkPBinder AutoImplicit bind) =
+    braces (keyword "auto" <++> prettyBasicMultiBinder bind)
+  prettyPBinder (MkPBinder (DefImplicit t) bind) =
+    braces (keyword "default" <++> prettyPTerm t <++> prettyBasicMultiBinder bind)
+
   ||| Pretty-print a PStr (string literal part).
   prettyPStr : {opts : _} -> PStr -> Doc opts
   prettyPStr (StrLiteral _ str) = text str
@@ -136,8 +185,12 @@ mutual
 
   ||| Pretty-print a PClause for a top-level definition (uses `=`).
   prettyPClauseDef : {opts : _} -> PClause -> Doc opts
-  prettyPClauseDef (MkPatClause _ lhs rhs _) =
+  prettyPClauseDef (MkPatClause _ lhs rhs []) =
     prettyPTerm lhs <++> equals <++> prettyPTerm rhs
+  prettyPClauseDef (MkPatClause _ lhs rhs ws) =
+    prettyPTerm lhs <++> equals
+      `vappend` indent 2 (prettyPTerm rhs
+        `vappend` indent 2 (keyword "where" `vappend` indent 2 (vsep (map prettyPDecl ws))))
   prettyPClauseDef (MkWithClause _ lhs wps flags _) =
     prettyPTerm lhs <++> keyword "with" <++> parens (hsep (map (prettyPTerm . withRigValue) (forget wps)))
   prettyPClauseDef (MkImpossible _ lhs) =
@@ -301,10 +354,16 @@ mutual
         parenthesise' (d >= appPrec) $ prettyPrecPTerm leftAppPrec lhsInfo.val.getLhs <++> prettyOpStr op.val <++> prettyPrecPTerm leftAppPrec rhs
       prettyPrecPTerm d (PUnifyLog _ _ tm) =
         prettyPTerm tm
-      prettyPrecPTerm d (NewPi _) =
-        line "/* NewPi not implemented */"
-      prettyPrecPTerm d (Forall _) =
-        line "/* Forall not implemented */"
+      prettyPrecPTerm d (NewPi x) =
+        let binder = x.val.binder
+            scope = x.val.scope
+        in parenthesise' (d > arrowPrec) $
+             prettyPBinder binder <++> line "->" <++> prettyPTerm scope
+      prettyPrecPTerm d (Forall x) =
+        let names = fst x.val
+            scope = snd x.val
+        in parenthesise' (d > startPrec) $
+             keyword "forall" <++> hsep (map (prettyName . val) (forget names)) <++> line "." <++> prettyPTerm scope
 
   ||| Pretty-print a PDecl.
   export
@@ -315,10 +374,35 @@ mutual
     in hsep ns <++> colon <++> prettyPTerm ty.val.type
   prettyPDecl (MkWithData fc (PDef clauses)) =
     vsep (map prettyPClauseDef clauses)
-  prettyPDecl (MkWithData fc (PData _ vis _ decl)) =
-    line "/* data declaration */"
+  prettyPDecl (MkWithData fc (PData doc vis treq decl)) =
+    case decl of
+      MkPData _ tyname tycon opts datacons =>
+        let visDoc = prettyVisSpace (collapseDefault vis)
+            tyconDoc = case tycon of
+                         Nothing => prettyName tyname
+                         Just t => prettyName tyname <++> colon <++> prettyPTerm t
+            header = keyword "data" <++> visDoc <+> tyconDoc <++> keyword "where"
+            cons = case datacons of
+                     [] => empty
+                     cs => indent 2 (vsep (map prettyConDecl cs))
+        in header `vappend` cons
+      MkPLater _ tyname tycon =>
+        keyword "data" <++> prettyName tyname <++> colon <++> prettyPTerm tycon
+    where
+      prettyConDecl : {opts : _} -> PTypeDecl -> Doc opts
+      prettyConDecl ty =
+        let td = val ty
+            ns = map (val . snd) (forget td.names)
+        in case ns of
+             [] => prettyName (UN (Basic "unnamed")) <++> colon <++> prettyPTerm td.type
+             (n :: _) => prettyNameOp n <++> colon <++> prettyPTerm td.type
   prettyPDecl (MkWithData fc (PParameters params decls)) =
-    keyword "parameters" <++> line "/* parameters */"
+    let paramDocs = case params of
+                      Left plainBinds =>
+                        hsep (map (\b => prettyName b.nameVal <++> colon <++> prettyPTerm b.val) (forget plainBinds))
+                      Right pbBinds =>
+                        hsep (map prettyPBinder (forget pbBinds))
+    in keyword "parameters" <++> paramDocs
       `vappend` indent 2 (vsep (map prettyPDecl decls))
   prettyPDecl (MkWithData fc (PUsing usings decls)) =
     keyword "using" <++> parens (hsep (map prettyUsing usings))
@@ -327,14 +411,74 @@ mutual
       prettyUsing : {opts : _} -> (Maybe Name, PTerm) -> Doc opts
       prettyUsing (Nothing, ty) = prettyPTerm ty
       prettyUsing (Just n, ty) = prettyName n <++> colon <++> prettyPTerm ty
-  prettyPDecl (MkWithData fc (PInterface _ _ _ _ _ _ _ _)) =
-    line "/* interface declaration */"
-  prettyPDecl (MkWithData fc (PImplementation _ _ _ _ _ _ _ _ _ _)) =
-    line "/* implementation declaration */"
-  prettyPDecl (MkWithData fc (PFixity _)) =
-    line "/* fixity declaration */"
-  prettyPDecl (MkWithData fc (PRecord _ _ _ _)) =
-    line "/* record declaration */"
+  prettyPDecl (MkWithData fc (PInterface vis constraints name doc params det conName methods)) =
+    let visDoc = prettyVisSpace (collapseDefault vis)
+        constraintDocs = case constraints of
+                           [] => empty
+                           cs => parens (hsep (punctuate (line ",") (map (prettyPTerm . snd) cs))) <++> keyword "=>" <++> empty
+        paramDocs = case params of
+                      [] => empty
+                      ps => hsep (map prettyBasicMultiBinder ps)
+        header = keyword "interface" <++> visDoc <+> constraintDocs <+> prettyName name <++> paramDocs <++> keyword "where"
+        body = case methods of
+                 [] => empty
+                 ms => indent 2 (vsep (map prettyPDecl ms))
+    in header `vappend` body
+  prettyPDecl (MkWithData fc (PImplementation vis opts pass implicits constraints name params implName nusing body)) =
+    let visDoc = case vis of
+                   Private => empty
+                   _ => prettyVis vis `vappend` empty
+        implDoc = case implName of
+                    Nothing => empty
+                    Just n => prettyName n <++> equals <++> empty
+        constraintDocs = case constraints of
+                           [] => empty
+                           cs => parens (hsep (punctuate (line ",") (map (prettyPTerm . snd) cs))) <++> keyword "=>" <++> empty
+        paramDocs = case params of
+                      [] => empty
+                      ps => hsep (map prettyPTerm ps)
+        header = keyword "implementation" <++> implDoc <+> constraintDocs <+> prettyName name <++> paramDocs
+    in mkImplResult visDoc header body
+    where
+      mkImplResult : {opts : _} -> Doc opts -> Doc opts -> Maybe (List PDecl) -> Doc opts
+      mkImplResult vd hdr Nothing = vd `vappend` hdr
+      mkImplResult vd hdr (Just ds) =
+        let bodyDoc = indent 2 (vsep (map prettyPDecl ds))
+        in vd `vappend` (hdr <++> keyword "where" `vappend` bodyDoc)
+  prettyPDecl (MkWithData fc (PFixity fixData)) =
+    let fixStr = case fixData.fixity of
+                   InfixL => "infixl"
+                   InfixR => "infixr"
+                   Infix  => "infix"
+                   Prefix => "prefix"
+        ops = map prettyOpStr (forget fixData.operators)
+    in keyword fixStr <++> line (show fixData.precedence) <++> hsep ops
+  prettyPDecl (MkWithData fc (PRecord doc vis treq decl)) =
+    case decl of
+      MkPRecord tyname params opts conName decls =>
+        let visDoc = prettyVisSpace (collapseDefault vis)
+            paramDocs = case params of
+                          [] => empty
+                          ps => hsep (map prettyPBinder ps)
+            header = keyword "record" <++> visDoc <+> prettyName tyname <++> paramDocs <++> keyword "where"
+            conDoc = case conName of
+                       Nothing => []
+                       Just c => [keyword "constructor" <++> prettyName c.val]
+            fieldDocs = map prettyFieldDecl decls
+            allBody = conDoc ++ fieldDocs
+            body = case allBody of
+                     [] => empty
+                     bs => indent 2 (vsep bs)
+        in header `vappend` body
+      MkPRecordLater tyname params =>
+        keyword "record" <++> prettyName tyname
+    where
+      prettyFieldDecl : {opts : _} -> PField -> Doc opts
+      prettyFieldDecl f =
+        let rig = f.rig
+            names = f.names
+            ty = (val f).boundType
+        in prettyRig rig <+> hsep (map (prettyName . val) names) <++> colon <++> prettyPTerm ty
   prettyPDecl (MkWithData fc (PMutual decls)) =
     keyword "mutual" `vappend` indent 2 (vsep (map prettyPDecl decls))
   prettyPDecl (MkWithData fc (PNamespace ns decls)) =
