@@ -515,6 +515,10 @@ prettyExpr _ (ESnocList xs) =
   snocList (map pretty (xs <>> []))
 prettyExpr _ (EPair x y) =
   lparen <+> pretty x <+> text ", " <+> pretty y <+> rparen
+prettyExpr _ (EDPair l Nothing r) =
+  parens (pretty l <++> keyword "**" <++> pretty r)
+prettyExpr _ (EDPair l (Just ty) r) =
+  parens (pretty l <++> colon <++> pretty ty <++> keyword "**" <++> pretty r)
 prettyExpr _ (EString parts) =
   dquotes (hcat (map pretty parts))
 prettyExpr _ (EDo _ stmts) =
@@ -540,6 +544,10 @@ prettyExpr _ EImplicit =
   line "_"
 prettyExpr _ (EQuote x) =
   line "`" <+> pretty x <+> line "`"
+prettyExpr _ (EQuoteName n) =
+  line "`" <+> pretty n
+prettyExpr _ (EQuoteDecl ds) =
+  line "`(" <+> vsep (map pretty ds) <+> line ")"
 prettyExpr _ (EUnquote x) =
   line "~" <+> pretty x
 prettyExpr _ (EPrim c) =
@@ -721,9 +729,7 @@ prettyClause _ (MkImposs lhs) =
 prettyDoStmt _ (DoExp tm) =
   pretty tm
 prettyDoStmt _ (DoBind n rig ty tm) =
-  (prettyRig rig <+> pretty n <+> tyDoc ty <++> keyword "<-")
-  `vappend`
-    indent 2 (pretty tm)
+  hangSep' 2 (prettyRig rig <+> pretty n <+> tyDoc ty <++> keyword "<-") (pretty tm)
   where
     tyDoc : Maybe (AST.Expr AST.Name) -> Doc opts
     tyDoc Nothing =

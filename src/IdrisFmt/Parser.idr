@@ -299,6 +299,16 @@ mutual
     AST.EList (map (translatePTerm . snd) xs)
   translatePTerm (PPair _ x y) =
     AST.EPair (translatePTerm x) (translatePTerm y)
+  translatePTerm (PDPair _ _ l (PImplicit _) r) =
+    AST.EDPair (translatePTerm l) Nothing (translatePTerm r)
+  translatePTerm (PDPair _ _ l ty r) =
+    AST.EDPair (translatePTerm l) (Just (translatePTerm ty)) (translatePTerm r)
+  translatePTerm (PSnocList _ _ xs) =
+    AST.ESnocList (map (translatePTerm . snd) xs)
+  translatePTerm (PQuoteName _ n) =
+    AST.EQuoteName (translateName n)
+  translatePTerm (PQuoteDecl _ ds) =
+    AST.EQuoteDecl (map (snd . translatePDecl) ds)
   translatePTerm (PUnit _) =
     AST.EUnit
   translatePTerm (PIfThenElse _ c t f) =
@@ -349,8 +359,6 @@ mutual
     translatePTerm x
   translatePTerm (PWithUnambigNames _ _ x) =
     translatePTerm x
-  translatePTerm tm =
-    AST.EHole ("unsupported_" ++ show tm)
   ||| Translate compiler Directive to formatter string.
   translateDirective : IS.Directive -> String
   translateDirective (Hide (HideName n)) =

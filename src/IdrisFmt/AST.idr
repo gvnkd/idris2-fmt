@@ -140,6 +140,7 @@ mutual
     EList : List (Expr nm) -> Expr nm
     ESnocList : SnocList (Expr nm) -> Expr nm
     EPair : Expr nm -> Expr nm -> Expr nm
+    EDPair : Expr nm -> Maybe (Expr nm) -> Expr nm -> Expr nm
     EString : List (StringPart nm) -> Expr nm
     EDo : Maybe String -> List (DoStmt nm) -> Expr nm
     EIdiom : Maybe String -> Expr nm -> Expr nm
@@ -149,6 +150,8 @@ mutual
     EUnit : Expr nm
     EImplicit : Expr nm
     EQuote : Expr nm -> Expr nm
+    EQuoteName : Name -> Expr nm
+    EQuoteDecl : List (Decl nm) -> Expr nm
     EUnquote : Expr nm -> Expr nm
     EPrim : Constant -> Expr nm
     EOp : Expr nm -> OpStr nm -> Expr nm -> Expr nm

@@ -235,7 +235,22 @@ mutual
     case arrowStyle of
       Trailing => pure (argDoc <++> line "->" <++> retDoc)
       Leading  => pure (argDoc `vappend` indent 2 (line "-> " <+> retDoc))
-  
+
+  prettyExprM (EDPair l Nothing r) = do
+    lDoc <- prettyExprM l
+    rDoc <- prettyExprM r
+    pure (parens (lDoc <++> keyword "**" <++> rDoc))
+
+  prettyExprM (EDPair l (Just ty) r) = do
+    lDoc <- prettyExprM l
+    tyDoc <- prettyExprM ty
+    rDoc <- prettyExprM r
+    pure (parens (lDoc <++> colon <++> tyDoc <++> keyword "**" <++> rDoc))
+
+  prettyExprM (EQuoteName n) = do
+    nDoc <- prettyNameM n
+    pure (line "`" <+> nDoc)
+
   prettyExprM _ =
     pure (text "/* TODO */")
   

@@ -423,6 +423,17 @@ mutual
     yDoc <- withPrec Open (prettyExprM y)
     pure (lparen <+> xDoc <+> text ", " <+> yDoc <+> rparen)
 
+  prettyExprM (EDPair l Nothing r) = do
+    lDoc <- withPrec Open (prettyExprM l)
+    rDoc <- withPrec Open (prettyExprM r)
+    pure (parens (lDoc <++> keyword "**" <++> rDoc))
+
+  prettyExprM (EDPair l (Just ty) r) = do
+    lDoc <- withPrec Open (prettyExprM l)
+    tyDoc <- withPrec Open (prettyExprM ty)
+    rDoc <- withPrec Open (prettyExprM r)
+    pure (parens (lDoc <++> colon <++> tyDoc <++> keyword "**" <++> rDoc))
+
   prettyExprM (EString parts) = do
     partsDocs <- traverse prettyStringPartM parts
     pure (dquotes (hcat partsDocs))
@@ -456,6 +467,14 @@ mutual
   prettyExprM (EQuote x) = do
     xDoc <- prettyExprM x
     pure (line "`" <+> xDoc <+> line "`")
+
+  prettyExprM (EQuoteName n) = do
+    nDoc <- prettyNameM n
+    pure (line "`" <+> nDoc)
+
+  prettyExprM (EQuoteDecl ds) = do
+    dsDocs <- traverse prettyDeclM ds
+    pure (line "`(" <+> vsep dsDocs <+> line ")")
 
   prettyExprM (EUnquote x) = do
     xDoc <- prettyExprM x
@@ -702,7 +721,7 @@ mutual
     nDoc <- prettyNameM n
     tmDoc <- prettyExprM tm
     tyDoc <- tyDocM ty
-    pure ((prettyRig rig <+> nDoc <+> tyDoc <++> keyword "<-") `vappend` indent 2 tmDoc)
+    pure (hangSep' 2 (prettyRig rig <+> nDoc <+> tyDoc <++> keyword "<-") tmDoc)
 
   prettyDoStmtM (DoBindPat pat ty val _) = do
     patDoc <- prettyExprM pat
