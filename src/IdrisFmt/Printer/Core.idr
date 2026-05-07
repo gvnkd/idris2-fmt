@@ -327,7 +327,7 @@ mutual
       prettyPrecPTerm d (PAutoApp _ f a) =
         parenthesise' (d > startPrec) $ prettyPrecPTerm leftAppPrec f <++> "@" <+> braces (prettyPTerm a)
       prettyPrecPTerm d (PPostfixApp _ rec fields) =
-        prettyPTerm rec <++> hsep (map (\(fc, n) => line "." <+> prettyName n) fields)
+        prettyPTerm rec <+> hsep (map (\(fc, n) => prettyName n) fields)
       prettyPrecPTerm d (PPostfixAppPartial _ fields) =
         line "." <+> hsep (map (\(fc, n) => prettyName n) fields)
       prettyPrecPTerm d (PPrefixOp _ op x) =
