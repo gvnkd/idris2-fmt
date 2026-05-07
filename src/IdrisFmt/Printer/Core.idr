@@ -178,7 +178,19 @@ mutual
   prettyPDo (DoLet _ _ l rig ty tm) =
     keyword "let" <++> prettyRig rig <+> prettyName l <++> colon <++> prettyPTerm ty <++> equals <++> prettyPTerm tm
   prettyPDo (DoLetPat _ l ty tm alts) =
-    keyword "let" <++> prettyPTerm l <++> equals <++> prettyPTerm tm
+    let letDoc = keyword "let" <++> prettyPTerm l <++> equals <++> prettyPTerm tm
+        altDocs = case alts of
+                    [] => letDoc
+                    _  => letDoc `vappend` vsep (map prettyPDoAlt alts)
+    in altDocs
+    where
+      prettyPDoAlt : {opts : _} -> PClause -> Doc opts
+      prettyPDoAlt (MkPatClause _ lhs rhs _) =
+        line "|" <++> prettyPTerm lhs <++> keyword "=>" <++> prettyPTerm rhs
+      prettyPDoAlt (MkImpossible _ lhs) =
+        line "|" <++> prettyPTerm lhs <++> keyword "impossible"
+      prettyPDoAlt (MkWithClause _ lhs wps flags _) =
+        line "|" <++> prettyPTerm lhs <++> keyword "with" <++> parens (hsep (map (prettyPTerm . withRigValue) (forget wps)))
   prettyPDo (DoLetLocal _ ds) =
     keyword "let" <++> braces (angles (angles "definitions"))
   prettyPDo (DoRewrite _ rule) =
