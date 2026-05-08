@@ -889,6 +889,8 @@ mutual
   fnOptDocM AST.Inline = keyword "%inline"
   fnOptDocM AST.TCInline = keyword "%tcinline"
   fnOptDocM AST.NoInline = keyword "%noinline"
+  fnOptDocM (AST.Foreign tms) = keyword "%foreign" <++> hsep (map text tms)
+  fnOptDocM (AST.ForeignExport tms) = keyword "%export" <++> hsep (map text tms)
 
   paramDeclDocM : {layoutOpts : _} -> AST.ParamDecl AST.Name -> PrinterM (Doc layoutOpts)
   paramDeclDocM (AST.MkParamDecl info rig n ty) =

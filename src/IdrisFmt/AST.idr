@@ -68,6 +68,8 @@ data FnOpt : Type where
   Inline : FnOpt
   TCInline : FnOpt
   NoInline : FnOpt
+  Foreign : List String -> FnOpt
+  ForeignExport : List String -> FnOpt
 
 ||| Import declaration metadata.
 public export

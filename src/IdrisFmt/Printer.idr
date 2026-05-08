@@ -207,6 +207,10 @@ fnOptDoc AST.TCInline =
   keyword "%tcinline"
 fnOptDoc AST.NoInline =
   keyword "%noinline"
+fnOptDoc (AST.Foreign tms) =
+  keyword "%foreign" <++> hsep (map text tms)
+fnOptDoc (AST.ForeignExport tms) =
+  keyword "%export" <++> hsep (map text tms)
 conNameDoc n =
   pretty n
 branchDoc kw (EDo _ stmts) =

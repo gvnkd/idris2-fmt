@@ -1,6 +1,7 @@
 module IdrisFmt.Printer.Core
 
 import public Idris.Syntax as IS
+import public TTImp.TTImp as TT
 import public Core.Name as CN
 import public Core.FC as CFC
 import public Algebra.ZeroOneOmega
@@ -112,13 +113,28 @@ prettyDirective (PrimDouble n) = "doubleLit " ++ show n
 prettyDirective (PrimTTImp n) = "primTTImp " ++ show n
 prettyDirective (PrimName n) = "primName " ++ show n
 prettyDirective (PrimDecls n) = "primDecls " ++ show n
-prettyDirective (ForeignImpl n tms) = "foreign " ++ show n
+prettyDirective (ForeignImpl n tms) = "foreign " ++ show n ++ " " ++ concat (intersperse " " (map show tms))
 prettyDirective (Hide (HideName n)) = "hide " ++ show n
 prettyDirective (Hide (HideFixity _ n)) = "hide " ++ show n
 prettyDirective (Unhide n) = "unhide " ++ show n
 prettyDirective (Logging Nothing) = "logging off"
 prettyDirective (Logging (Just _)) = "logging on"
 prettyDirective _ = "/* unknown directive */"
+
+||| Pretty-print a PFnOpt.
+prettyPFnOpt : {opts : _} -> PFnOpt -> Doc opts
+prettyPFnOpt (IFnOpt TT.Inline) = keyword "%inline"
+prettyPFnOpt (IFnOpt TT.TCInline) = keyword "%tcinline"
+prettyPFnOpt (IFnOpt TT.NoInline) = keyword "%noinline"
+prettyPFnOpt (IFnOpt TT.Unsafe) = keyword "%unsafe"
+prettyPFnOpt (IFnOpt (TT.Hint _)) = keyword "%hint"
+prettyPFnOpt (IFnOpt (TT.GlobalHint _)) = keyword "%global_hint"
+prettyPFnOpt (IFnOpt TT.ExternFn) = keyword "%extern"
+prettyPFnOpt (IFnOpt (TT.ForeignFn tms)) = keyword "%foreign" <++> hsep (map (line . show) tms)
+prettyPFnOpt (IFnOpt (TT.Deprecate)) = keyword "%deprecate"
+prettyPFnOpt (PForeign tms) = keyword "%foreign" <++> hsep (map (line . show) tms)
+prettyPFnOpt (PForeignExport tms) = keyword "%export" <++> hsep (map (line . show) tms)
+prettyPFnOpt _ = keyword "%unknown_fnopt"
 
 ||| Render a visibility keyword.
 prettyVis : {opts : _} -> Visibility -> Doc opts
@@ -522,9 +538,13 @@ mutual
   prettyPDecl (MkWithData fc (PClaim (MkPClaim rig vis opts ty))) =
     let ns = map prettyNameOp ty.nameList
         sigDoc = hsep ns <++> colon <++> prettyPTerm ty.val.type
+        optsDoc = vsep (map prettyPFnOpt opts)
+        fullSig = case opts of
+                    [] => sigDoc
+                    _  => optsDoc `vappend` sigDoc
     in case vis of
-         Private => sigDoc
-         _       => prettyVis vis `vappend` sigDoc
+         Private => fullSig
+         _       => prettyVis vis `vappend` fullSig
   prettyPDecl (MkWithData fc (PDef clauses)) =
     vsep (map prettyPClauseDef clauses)
   prettyPDecl (MkWithData fc (PData doc vis treq decl)) =

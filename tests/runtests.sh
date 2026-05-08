@@ -16,7 +16,7 @@
 FMT="${1:-./build/exec/idris2-fmt}"
 
 # Supported test cases. Add new names here as files are added.
-CASES="DoLetAlternatives PublicExport LamCase RecordAccess LetAlternatives ImportPublic AsPattern CaseExpr Comments ConstraintArrow DataType DependentPair DoLetAnnot Expr Fixity Forall Functions Gadt IfThenElse Implicit Interface Mutual Operators Record TupleSection WhereClause OperatorDef FieldPrefix DoBindPat RecordParams PLocal"
+CASES="DoLetAlternatives PublicExport LamCase RecordAccess LetAlternatives ImportPublic AsPattern CaseExpr Comments ConstraintArrow DataType DependentPair DoLetAnnot Expr Fixity Forall Functions Gadt IfThenElse Implicit Interface Mutual Operators Record TupleSection WhereClause OperatorDef FieldPrefix DoBindPat RecordParams PLocal Foreign"
 
 FAILED=0
 PASSED=0

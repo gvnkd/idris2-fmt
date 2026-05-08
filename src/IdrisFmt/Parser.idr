@@ -434,7 +434,7 @@ mutual
   translateDirective (PrimDecls n) =
     "primDecls " ++ show n
   translateDirective (ForeignImpl n tms) =
-    "foreign " ++ show n
+    "foreign " ++ concat (L.intersperse " " (map show tms))
   ||| Extract function name from a clause LHS.
   getFnName : IS.PTerm -> Maybe AST.Name
   getFnName (PRef _ n) =
@@ -499,6 +499,10 @@ mutual
     AST.TCInline
   translateFnOpt (IFnOpt TT.NoInline) =
     AST.NoInline
+  translateFnOpt (PForeign tms) =
+    AST.Foreign (map show tms)
+  translateFnOpt (PForeignExport tms) =
+    AST.ForeignExport (map show tms)
   translateFnOpt _ =
     AST.NoInline
   ||| Translate compiler Fixity to formatter Fixity.
