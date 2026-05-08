@@ -131,16 +131,22 @@ prettyVisSpace : {opts : _} -> Visibility -> Doc opts
 prettyVisSpace Private = empty
 prettyVisSpace v = prettyVis v <++> empty
 
-||| Render a BasicMultiBinder.
-prettyBasicMultiBinder : {opts : _} -> BasicMultiBinder -> Doc opts
-prettyBasicMultiBinder (MkBasicMultiBinder rig names ty) =
-  let nameDoc = prettyRig rig <+> hsep (map (prettyName . val) (forget names))
-  in case ty of
-       PImplicit _ => nameDoc
-       PInfer _    => nameDoc
-       _           => nameDoc <++> colon <++> line (show ty)
-
 mutual
+  ||| Render a BasicMultiBinder.
+  prettyBasicMultiBinder : {opts : _} -> BasicMultiBinder -> Doc opts
+  prettyBasicMultiBinder (MkBasicMultiBinder rig names ty) =
+    let nameDoc = prettyRig rig <+> hsep (map (prettyName . val) (forget names))
+    in case ty of
+         PImplicit _ => nameDoc
+         PInfer _    => nameDoc
+         _           => nameDoc <++> colon <++> prettyPTerm ty
+
+  ||| Render a BasicMultiBinder, always including the type annotation.
+  prettyBasicMultiBinderFull : {opts : _} -> BasicMultiBinder -> Doc opts
+  prettyBasicMultiBinderFull (MkBasicMultiBinder rig names ty) =
+    let nameDoc = prettyRig rig <+> hsep (map (prettyName . val) (forget names))
+    in nameDoc <++> colon <++> prettyPTerm ty
+
   ||| Render a PBinder as a parameter doc.
   prettyPBinder : {opts : _} -> PBinder -> Doc opts
   prettyPBinder (MkPBinder Implicit bind) =
@@ -150,6 +156,31 @@ mutual
   prettyPBinder (MkPBinder AutoImplicit bind) =
     braces (keyword "auto" <++> prettyBasicMultiBinder bind)
   prettyPBinder (MkPBinder (DefImplicit t) bind) =
+    braces (keyword "default" <++> prettyPTerm t <++> prettyBasicMultiBinder bind)
+
+  ||| Render a PBinder as a parameter doc, always including the type annotation.
+  prettyPBinderFull : {opts : _} -> PBinder -> Doc opts
+  prettyPBinderFull (MkPBinder Implicit bind) =
+    braces (prettyBasicMultiBinderFull bind)
+  prettyPBinderFull (MkPBinder Explicit bind) =
+    parens (prettyBasicMultiBinderFull bind)
+  prettyPBinderFull (MkPBinder AutoImplicit bind) =
+    braces (keyword "auto" <++> prettyBasicMultiBinderFull bind)
+  prettyPBinderFull (MkPBinder (DefImplicit t) bind) =
+    braces (keyword "default" <++> prettyPTerm t <++> prettyBasicMultiBinderFull bind)
+
+  ||| Render a PBinder for record parameters (no parens for explicit implicit-typed params).
+  prettyRecordParam : {opts : _} -> PBinder -> Doc opts
+  prettyRecordParam (MkPBinder Explicit bind) =
+    case bind.type of
+      PImplicit _ => prettyBasicMultiBinder bind
+      PInfer _    => prettyBasicMultiBinder bind
+      _           => parens (prettyBasicMultiBinder bind)
+  prettyRecordParam (MkPBinder Implicit bind) =
+    braces (prettyBasicMultiBinder bind)
+  prettyRecordParam (MkPBinder AutoImplicit bind) =
+    braces (keyword "auto" <++> prettyBasicMultiBinder bind)
+  prettyRecordParam (MkPBinder (DefImplicit t) bind) =
     braces (keyword "default" <++> prettyPTerm t <++> prettyBasicMultiBinder bind)
 
   ||| Pretty-print a PStr (string literal part).
@@ -163,8 +194,15 @@ mutual
     hsep (map line path) <++> equals <++> prettyPTerm v
   prettyPFieldUpdate (PSetFieldApp path v) =
     hsep (map line path) <++> keyword "$=" <++> prettyPTerm v
+  ||| Pretty-print a PClause alternative for do/let pattern bindings.
+  prettyPDoAlt : {opts : _} -> PClause -> Doc opts
+  prettyPDoAlt (MkPatClause _ lhs rhs _) =
+    line "|" <++> prettyPTerm lhs <++> keyword "=>" <++> prettyPTerm rhs
+  prettyPDoAlt (MkImpossible _ lhs) =
+    line "|" <++> prettyPTerm lhs <++> keyword "impossible"
+  prettyPDoAlt (MkWithClause _ lhs wps flags _) =
+    line "|" <++> prettyPTerm lhs <++> keyword "with" <++> parens (hsep (map (prettyPTerm . withRigValue) (forget wps)))
 
-  ||| Pretty-print a PDo statement.
   prettyPDo : {opts : _} -> PDo -> Doc opts
   prettyPDo (DoExp _ tm) = prettyPTerm tm
   prettyPDo (DoBind _ _ n rig (Just ty) tm) =
@@ -172,9 +210,17 @@ mutual
   prettyPDo (DoBind _ _ n rig Nothing tm) =
     prettyRig rig <+> prettyName n <++> keyword "<-" <++> prettyPTerm tm
   prettyPDo (DoBindPat _ l (Just ty) tm alts) =
-    prettyPTerm l <++> colon <++> keyword "<-" <++> prettyPTerm tm
+    let bindDoc = prettyPTerm l <++> colon <++> keyword "<-" <++> prettyPTerm tm
+        altDocs = case alts of
+                    [] => bindDoc
+                    _  => bindDoc `vappend` vsep (map prettyPDoAlt alts)
+    in altDocs
   prettyPDo (DoBindPat _ l Nothing tm alts) =
-    prettyPTerm l <++> keyword "<-" <++> prettyPTerm tm
+    let bindDoc = prettyPTerm l <++> keyword "<-" <++> prettyPTerm tm
+        altDocs = case alts of
+                    [] => bindDoc
+                    _  => bindDoc `vappend` vsep (map prettyPDoAlt alts)
+    in altDocs
   prettyPDo (DoLet _ _ l rig ty tm) =
     keyword "let" <++> prettyRig rig <+> prettyName l <++> colon <++> prettyPTerm ty <++> equals <++> prettyPTerm tm
   prettyPDo (DoLetPat _ l ty tm alts) =
@@ -183,14 +229,6 @@ mutual
                     [] => letDoc
                     _  => letDoc `vappend` vsep (map prettyPDoAlt alts)
     in altDocs
-    where
-      prettyPDoAlt : {opts : _} -> PClause -> Doc opts
-      prettyPDoAlt (MkPatClause _ lhs rhs _) =
-        line "|" <++> prettyPTerm lhs <++> keyword "=>" <++> prettyPTerm rhs
-      prettyPDoAlt (MkImpossible _ lhs) =
-        line "|" <++> prettyPTerm lhs <++> keyword "impossible"
-      prettyPDoAlt (MkWithClause _ lhs wps flags _) =
-        line "|" <++> prettyPTerm lhs <++> keyword "with" <++> parens (hsep (map (prettyPTerm . withRigValue) (forget wps)))
   prettyPDo (DoLetLocal _ ds) =
     keyword "let" <++> braces (angles (angles "definitions"))
   prettyPDo (DoRewrite _ rule) =
@@ -234,7 +272,10 @@ mutual
   prettyPTerm = prettyPrecPTerm startPrec
     where
       prettyPrecPTerm : {opts : _} -> Prec' -> PTerm -> Doc opts
-      prettyPrecPTerm d (PRef _ nm) = prettyName nm
+      prettyPrecPTerm d (PRef _ nm) =
+        case nm of
+          UN (Field _) => parens (prettyName nm)
+          _ => if CN.isOpName nm then parens (prettyName nm) else prettyName nm
       prettyPrecPTerm d (PPi _ rig Explicit Nothing arg ret) =
         parenthesise' (d > arrowPrec) $
           prettyPrecPTerm (arrowPrec + 1) arg <++> line "->" <++> prettyPrecPTerm arrowPrec ret
@@ -359,7 +400,7 @@ mutual
           keyword "case" <++> prettyPTerm tm <++> keyword "of" `vappend` indent 2 (vsep (map prettyPClauseCase cs))
       prettyPrecPTerm d (PLocal _ ds sc) =
         parenthesise' (d > startPrec) $
-          keyword "let" <++> braces (angles (angles "definitions")) <++> keyword "in" <++> prettyPTerm sc
+          (keyword "let" `vappend` indent 2 (vsep (map prettyPDecl ds))) `vappend` keyword "in" <++> prettyPTerm sc
       prettyPrecPTerm d (PApp _ f a) =
         parenthesise' (d >= appPrec) $ prettyPrecPTerm leftAppPrec f <++> prettyPrecPTerm appPrec a
       prettyPrecPTerm d (PWithApp _ f a) =
@@ -371,7 +412,7 @@ mutual
       prettyPrecPTerm d (PPostfixApp _ rec fields) =
         prettyPTerm rec <+> hcat (map (\(fc, n) => prettyName n) fields)
       prettyPrecPTerm d (PPostfixAppPartial _ fields) =
-        line "." <+> hsep (map (\(fc, n) => prettyName n) fields)
+        parens (hcat (map (\(fc, n) => prettyName n) fields))
       prettyPrecPTerm d (PPrefixOp _ op x) =
         prettyOpStr op.val <++> prettyPTerm x
       prettyPrecPTerm d (PSectionL _ op x) =
@@ -440,10 +481,10 @@ mutual
         line "?" <+> line n
       prettyPrecPTerm d (PPrimVal _ c) =
         prettyConstant c
-      prettyPrecPTerm d (PAs _ _ n p) =
-        prettyName n <+> line "@" <+> prettyPTerm p
       prettyPrecPTerm d (PDotted _ p) =
         dot <+> prettyPTerm p
+      prettyPrecPTerm d (PAs _ _ n p) =
+        prettyName n <+> line "@" <+> prettyPTerm p
       prettyPrecPTerm d (PQuote _ tm) =
         line "`" <+> parens (prettyPTerm tm)
       prettyPrecPTerm d (PQuoteName _ n) =
@@ -468,7 +509,7 @@ mutual
         let binder = x.val.binder
             scope = x.val.scope
         in parenthesise' (d > arrowPrec) $
-             prettyPBinder binder <++> line "->" <++> prettyPTerm scope
+              prettyPBinderFull binder <++> line "->" <++> prettyPTerm scope
       prettyPrecPTerm d (Forall x) =
         let names = fst x.val
             scope = snd x.val
@@ -479,7 +520,7 @@ mutual
   export
   prettyPDecl : {opts : _} -> PDecl -> Doc opts
   prettyPDecl (MkWithData fc (PClaim (MkPClaim rig vis opts ty))) =
-    let ns = map prettyName ty.nameList
+    let ns = map prettyNameOp ty.nameList
         sigDoc = hsep ns <++> colon <++> prettyPTerm ty.val.type
     in case vis of
          Private => sigDoc
@@ -585,7 +626,7 @@ mutual
       MkPRecordLater tyname params =>
         let paramDocs = case params of
                           [] => empty
-                          ps => hsep (map prettyPBinder ps)
+                          ps => hsep (map prettyRecordParam ps)
         in case collapseDefault vis of
              Private => case params of
                           [] => keyword "record" <++> prettyName tyname
@@ -619,7 +660,7 @@ mutual
   mkRecordBody tyname params recConName recDecls =
     let paramDocs = case params of
                       [] => empty
-                      ps => hsep (map prettyPBinder ps)
+                      ps => hsep (map prettyRecordParam ps)
         header = case params of
                    [] => keyword "record" <++> prettyName tyname <++> keyword "where"
                    _  => keyword "record" <++> prettyName tyname <++> paramDocs <++> keyword "where"
@@ -724,10 +765,31 @@ mutual
       then prettyItem item1 :: line "" :: interleaveItems (item2 :: rest)
       else prettyItem item1 :: interleaveItems (item2 :: rest)
 
+  ||| Check if a comment should be kept as a top-level item.
+  ||| Check if a comment should be kept as a top-level item.
+  ||| Comments deep inside function bodies (far from declaration start) are skipped.
+  keepComment : List Nat -> C.Comment -> Bool
+  keepComment declLines comment =
+    case declLines of
+      [] => True
+      (d :: ds) =>
+        let prevDecls = filter (<= comment.line) declLines
+            nextDecls = filter (> comment.line) declLines
+        in case prevDecls of
+             [] => True
+             (pd :: pds) =>
+               let prevDecl = last (pd :: pds)
+               in case nextDecls of
+                    [] => True
+                    _  =>
+                       let distance = comment.line `minus` prevDecl
+                       in distance <= 3
   ||| Merge declarations and comments by source line.
   mergeItems : List PDecl -> List C.Comment -> List Item
   mergeItems decls comments =
-    L.sortBy itemCompare (map IDecl decls ++ map IComment comments)
+    let declLines = map declLine (L.sortBy (comparing declLine) decls)
+        filteredComments = filter (keepComment declLines) comments
+    in L.sortBy itemCompare (map IDecl decls ++ map IComment filteredComments)
 
   ||| Pretty-print a full Module with comments.
   export

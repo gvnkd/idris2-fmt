@@ -394,7 +394,7 @@ mutual
 
   prettyExprM (EPostfixAppPartial fields) =
     let fieldDocs = map (line . show) fields
-    in pure (hcat (concatMap (\f => [line ".", f]) fieldDocs))
+    in pure (parens (hcat (concatMap (\f => [line ".", f]) fieldDocs)))
 
   prettyExprM (EDelayed x) = prettyExprM x
   prettyExprM (EDelay x) = prettyExprM x
