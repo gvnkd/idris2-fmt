@@ -207,7 +207,7 @@ mutual
   ||| Pretty-print a PFieldUpdate.
   prettyPFieldUpdate : {opts : _} -> PFieldUpdate -> Doc opts
   prettyPFieldUpdate (PSetField path v) =
-    hsep (map line path) <++> equals <++> prettyPTerm v
+    hsep (map line path) <++> keyword ":=" <++> prettyPTerm v
   prettyPFieldUpdate (PSetFieldApp path v) =
     hsep (map line path) <++> keyword "$=" <++> prettyPTerm v
   ||| Pretty-print a PClause alternative for do/let pattern bindings.
@@ -417,6 +417,8 @@ mutual
       prettyPrecPTerm d (PLocal _ ds sc) =
         parenthesise' (d > startPrec) $
           (keyword "let" `vappend` indent 2 (vsep (map prettyPDecl ds))) `vappend` keyword "in" <++> prettyPTerm sc
+      prettyPrecPTerm d (PApp _ (PUpdate _ fs) rec) =
+        braces (vsep (punctuate (line ",") (map prettyPFieldUpdate fs))) <++> prettyPrecPTerm appPrec rec
       prettyPrecPTerm d (PApp _ f a) =
         parenthesise' (d >= appPrec) $ prettyPrecPTerm leftAppPrec f <++> prettyPrecPTerm appPrec a
       prettyPrecPTerm d (PWithApp _ f a) =
@@ -516,7 +518,7 @@ mutual
       prettyPrecPTerm d (PSearch _ _) =
         keyword "%search"
       prettyPrecPTerm d (PUpdate _ fs) =
-        keyword "record" <++> braces (vsep (punctuate (line ",") (map prettyPFieldUpdate fs)))
+        braces (vsep (punctuate (line ",") (map prettyPFieldUpdate fs)))
       prettyPrecPTerm d (PWithUnambigNames _ ns rhs) =
         keyword "with" <++> parens (hsep (map (prettyName . snd) ns)) <++> prettyPTerm rhs
       prettyPrecPTerm d (POp _ lhsInfo op rhs) =
