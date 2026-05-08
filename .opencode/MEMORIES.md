@@ -324,7 +324,7 @@ function within a `mutual` block. Place all helper functions either:
 - **Parser bridge:** Calls `Parser.Source.runParser` with `Idris.Parser.prog`.
   Translates compiler AST (`PTerm`, `PDecl`, `PClause`) to formatter AST.
 
-## Current Status (v0.14.0)
+## Current Status (v0.14.2)
 
 **All critical formatting bugs fixed:**
 - `PRef` operator parenthesization in function clauses (`(<*>) af ax = ...`)
@@ -337,12 +337,15 @@ function within a `mutual` block. Place all helper functions either:
 - Record parameter spurious parens (`record Parser a` not `Parser (a)`)
 - `%foreign` and `%export` directive preservation in `PClaim` function options
 - `ForeignImpl` directive spec string preservation
+- Record pattern `MkFoo {}` rendering (was broken to `MkFoo {_ = _}`)
 
 **Test coverage:**
-- 32 reference tests (compile + format + idempotency + convergence)
+- 33 reference tests (compile + format + idempotency + convergence)
 - taiga-cli end-to-end integration (55 modules, zero manual fixes)
+- optparse-applicative integration (13 modules, clean pass)
+- idris2-mkdoc-md integration (8 modules, clean pass)
 
-**Tagged:** v0.14.0
+**Tagged:** v0.14.2
 
 ## Next Steps
 
