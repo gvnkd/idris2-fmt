@@ -371,6 +371,9 @@ mutual
     xDoc <- withPrec App (prettyExprM x)
     pure (parenthesise (d >= App) $ hangSep' 2 fDoc xDoc)
 
+  prettyExprM (ENamedApp f (AST.UN "_") AST.EImplicit) = do
+    fDoc <- prettyExprM f
+    pure (hangSep' 2 fDoc (braces empty))
   prettyExprM (ENamedApp f n x) = do
     fDoc <- prettyExprM f
     nDoc <- prettyNameM n

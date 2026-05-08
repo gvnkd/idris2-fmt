@@ -421,6 +421,8 @@ mutual
         parenthesise' (d >= appPrec) $ prettyPrecPTerm leftAppPrec f <++> prettyPrecPTerm appPrec a
       prettyPrecPTerm d (PWithApp _ f a) =
         prettyPrecPTerm d f <++> keyword "with" <++> prettyPTerm a
+      prettyPrecPTerm d (PNamedApp _ f (UN Underscore) (PImplicit _)) =
+        parenthesise' (d > startPrec) $ prettyPrecPTerm leftAppPrec f <++> braces empty
       prettyPrecPTerm d (PNamedApp _ f n a) =
         parenthesise' (d > startPrec) $ prettyPrecPTerm leftAppPrec f <++> braces (prettyName n <++> equals <++> prettyPTerm a)
       prettyPrecPTerm d (PAutoApp _ f a) =

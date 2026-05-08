@@ -478,6 +478,8 @@ prettyExpr d (EApp f (EDo _ stmts)) =
     hangSep' 2 (prettyPrec Open f <++> keyword "do") (vsep (map pretty stmts))
 prettyExpr d (EApp f x) =
   parenthesise (d >= App) $ hangSep' 2 (prettyPrec Open f) (prettyPrec App x)
+prettyExpr _ (ENamedApp f (AST.UN "_") AST.EImplicit) =
+  hangSep' 2 (pretty f) (braces empty)
 prettyExpr _ (ENamedApp f n x) =
   hangSep' 2 (pretty f) (braces (pretty n <++> equals <++> pretty x))
 prettyExpr _ (EAutoApp f x) =
