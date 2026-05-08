@@ -324,35 +324,26 @@ function within a `mutual` block. Place all helper functions either:
 - **Parser bridge:** Calls `Parser.Source.runParser` with `Idris.Parser.prog`.
   Translates compiler AST (`PTerm`, `PDecl`, `PClause`) to formatter AST.
 
-## Current Status (Phase 4a Complete)
+## Current Status (v0.14.0)
 
-**Implemented translations:**
-- `PClaim` → `DClaim` (type signatures)
-- `PDef` → `DDef` (function definitions with clause translation)
-- `PFixity` → `DFixity` (fixity declarations)
-- `PNamespace` → `DNamespace` (namespace blocks)
-- `PData` → `DData` (data types with param extraction)
-- `PRecord` → `DRecord` (records with field extraction + constructor name)
-- `PInterface` → `DInterface` (interfaces with param/constraint translation)
-- `PImplementation` → `DImpl` (implementations)
-- `PRef`, `PPi`, `PLam`, `PApp`, `PPrimVal` (with `PrimType`), `PType`,
-  `PImplicit`, `PInfer`, `PHole`, `PDelayed`, `PDelay`, `PForce`,
-  `PBracketed`, `PDotted`, `PAs`, `POp`, `PString`, `PList`, `PPair`,
-  `PUnit`, `PIfThenElse`, `PIdiom`, `PCase`, `PDoBlock`, `PUpdate` → `Expr`
-- `MkPatClause` → `MkClause` (function defs, uses `=`)
-- `MkPatClause` → `MkCaseClause` (case alts, uses `=>`)
-- `MkImpossible` → `MkImposs`
-- Module headers (`DModule`) and imports (`DImport`) from parser `Module`
+**All critical formatting bugs fixed:**
+- `PRef` operator parenthesization in function clauses (`(<*>) af ax = ...`)
+- `PClaim` operator parenthesization in type signatures
+- `PRef (UN (Field _))` accessor sections (`(.task)`)
+- `PPostfixAppPartial` bare field access
+- `DoBindPat` alternatives rendering (`| Nothing => ...`)
+- `PLocal` declarations rendering (`let ... in`)
+- `NewPi` (forall) rendering
+- Record parameter spurious parens (`record Parser a` not `Parser (a)`)
 
-**Still placeholder comments:**
-- `PParameters`, `PUsing`, `PMutual`
-- `PTransform`, `PRunElabDecl`, `PDirective`, `PBuiltin`
-- `PRewrite`, `PComprehension`, `PRange`, `PRangeStream`
+**Test coverage:**
+- 31 reference tests (compile + format + idempotency + convergence)
+- taiga-cli end-to-end integration (55 modules, zero manual fixes)
 
-## Next Steps (Phase 4b / 5)
+**Tagged:** v0.14.0
 
-1. **Attach comments:** Extract comment annotations from parser `State.decorations`
-   and attach to AST nodes.
-2. **Round-trip tests:** Parse -> Format -> Parse should yield equivalent AST.
-3. **Restore totality:** Fill remaining holes and switch modules back to
-   `%default total`.
+## Next Steps
+
+1. **Restore totality:** Switch modules from `%default covering` to `%default total`
+2. **Attach comments:** Extract comment annotations from parser `State.decorations`
+3. **Round-trip tests:** Parse -> Format -> Parse should yield equivalent AST
