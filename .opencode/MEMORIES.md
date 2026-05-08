@@ -335,9 +335,11 @@ function within a `mutual` block. Place all helper functions either:
 - `PLocal` declarations rendering (`let ... in`)
 - `NewPi` (forall) rendering
 - Record parameter spurious parens (`record Parser a` not `Parser (a)`)
+- `%foreign` and `%export` directive preservation in `PClaim` function options
+- `ForeignImpl` directive spec string preservation
 
 **Test coverage:**
-- 31 reference tests (compile + format + idempotency + convergence)
+- 32 reference tests (compile + format + idempotency + convergence)
 - taiga-cli end-to-end integration (55 modules, zero manual fixes)
 
 **Tagged:** v0.14.0
